@@ -13,7 +13,7 @@ SECRET_PATTERNS = [
 ]
 
 PII_PATTERNS = [
-    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"), # Email
+    re.compile(r"\b(?!agentmesh-)[A-Za-z0-9._%+-]+@(?!.*gserviceaccount\.com)[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"), # User Email (excluding system SA)
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), # SSN
     re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b"), # Credit Card
 ]
