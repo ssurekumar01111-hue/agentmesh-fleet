@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# Env / secrets — NEVER commit these
+.env
+.env.*
+*.key.json
+service-account*.json
+*.pem
+
+# GCP
+.gcloudignore
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

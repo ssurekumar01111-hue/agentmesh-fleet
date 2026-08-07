@@ -1,0 +1,83 @@
+rules_version = '2';
+
+// AgentMesh Firestore Security Rules
+// This is the infra-layer least-privilege boundary — independent of the
+// Gateway's application-layer policy check. Both must agree for a read/write
+// to succeed in practice, but this file is what stops a Gateway bug from
+// becoming a data breach.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Only the Gateway service account may write audit logs — nothing else
+    // should ever touch this collection, guaranteeing nothing bypasses logging.
+    match /audit_log/{logId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+    }
+
+    // Registry: readable by any authenticated agent (for discovery), writable
+    // only by the Gateway (which mediates publish/version/approve actions).
+    match /agent_registry/{agentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+    }
+
+    // Workflows: any agent involved in the workflow may update it; creation
+    // is Gateway-mediated.
+    match /workflows/{workflowId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+      allow update: if request.auth != null
+        && request.auth.token.email in resource.data.involvedServiceAccounts;
+    }
+
+    // Memory: same pattern — scoped to agents involved in the owning workflow.
+    match /memory/{caseId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+      // Tightened further once workflow-to-case linkage is implemented in Week 2.
+    }
+
+    // Policies: read-only for all agents, write only via Gateway admin path.
+    match /policies/{policyId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+    }
+
+    // --- Sandbox company data — the real least-privilege test case ---
+
+    // Finance-only data: fraud-finance agent and Gateway only. This is the
+    // rule that makes the "Compliance Agent tries to read HR, gets denied"
+    // demo moment real rather than simulated.
+    match /sandbox_invoices/{invoiceId} {
+      allow read, write: if request.auth.token.email in [
+        "agentmesh-fraud-finance@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+    }
+
+    match /sandbox_vendors/{vendorId} {
+      allow read: if request.auth.token.email in [
+        "agentmesh-fraud-finance@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+      allow write: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+    }
+
+    // HR data: intentionally NOT granted to fraud-finance or compliance —
+    // this is what makes the "denied" demo moment a real rule evaluation,
+    // not a scripted UI response.
+    match /sandbox_employees/{employeeId} {
+      allow read, write: if request.auth.token.email == "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com";
+    }
+
+    match /sandbox_incidents/{incidentId} {
+      allow read, write: if request.auth.token.email in [
+        "agentmesh-it-security@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-compliance@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+    }
+  }
+}
