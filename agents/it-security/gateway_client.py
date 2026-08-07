@@ -17,6 +17,7 @@ class GatewayClient:
         headers = {"Content-Type": "application/json"}
         if os.getenv("ALLOW_LOCAL_AUTH_EMULATION", "false").lower() == "true":
             headers["x-emulated-sa"] = self.sa_email
+            headers["Authorization"] = f"Bearer {self.sa_email}"
         return headers
 
     def call_gateway(self, target_resource: str, collection_name: str, action: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

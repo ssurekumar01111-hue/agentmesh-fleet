@@ -1,0 +1,8 @@
+fastapi>=0.100.0
+uvicorn>=0.22.0
+requests>=2.31.0
+google-cloud-firestore>=2.11.0
+google-cloud-aiplatform>=1.38.0
+google-cloud-secretmanager>=2.16.0
+google-genai>=0.1.0
+pydantic>=2.0.0
