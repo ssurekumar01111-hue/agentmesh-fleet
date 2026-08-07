@@ -193,25 +193,33 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
 
     # Stage 5 & 6: Tool Access & Forwarding to Target
-    print(f"[Gateway] Stage 5/6: Forwarding request to Firestore collection '{req.collectionName}'...")
+    print(f"[Gateway] Stage 5/6: Forwarding request to target '{req.targetResource}'...")
     try:
-        if req.action == "read":
-            if req.payload and "docId" in req.payload:
-                doc_ref = db.collection(req.collectionName).document(req.payload["docId"]).get()
-                result = doc_ref.to_dict() if doc_ref.exists else None
+        if req.targetResource.startswith("github:"):
+            from github_tool import GitHubToolHandler
+            github_tool = GitHubToolHandler(project_id=PROJECT_ID)
+            result = github_tool.execute(action=req.action, payload=req.payload)
+
+        elif req.targetResource.startswith("firestore:"):
+            if req.action == "read":
+                if req.payload and "docId" in req.payload:
+                    doc_ref = db.collection(req.collectionName).document(req.payload["docId"]).get()
+                    result = doc_ref.to_dict() if doc_ref.exists else None
+                else:
+                    docs = db.collection(req.collectionName).limit(20).stream()
+                    result = [d.to_dict() for d in docs]
+            elif req.action == "write":
+                doc_id = req.payload.get("docId")
+                data = req.payload.get("data", {})
+                if doc_id:
+                    db.collection(req.collectionName).document(doc_id).set(data)
+                else:
+                    db.collection(req.collectionName).add(data)
+                result = {"status": "written"}
             else:
-                docs = db.collection(req.collectionName).limit(20).stream()
-                result = [d.to_dict() for d in docs]
-        elif req.action == "write":
-            doc_id = req.payload.get("docId")
-            data = req.payload.get("data", {})
-            if doc_id:
-                db.collection(req.collectionName).document(doc_id).set(data)
-            else:
-                db.collection(req.collectionName).add(data)
-            result = {"status": "written"}
+                result = {"status": "forwarded", "collection": req.collectionName}
         else:
-            result = {"status": "forwarded", "collection": req.collectionName}
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported targetResource '{req.targetResource}'")
 
         # Model Armor Outbound Scan
         res_str = str(result)
