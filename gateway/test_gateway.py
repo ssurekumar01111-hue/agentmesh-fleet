@@ -41,30 +41,24 @@ def test_allowed_case():
     assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}"
     res_data = response.json()
     assert res_data.get("policyDecision") == "allowed"
+    audit_log_id = res_data.get("auditLogId")
+    assert audit_log_id is not None, "Gateway did not return auditLogId"
 
-    # Verify audit_log entry in Firestore
+    # Verify audit_log entry in Firestore by exact ID
     time.sleep(1)
-    logs = list(
-        db.collection("audit_log")
-        .where("agentId", "==", "fraud-finance")
-        .stream()
-    )
-
-    assert len(logs) > 0, "No audit_log document found for fraud-finance!"
-    # Pick the most recent log by timestamp in code
-    sorted_logs = sorted(logs, key=lambda d: d.to_dict().get("latencyMs", 0))
-    latest_log_doc = logs[-1]
-    log_data = latest_log_doc.to_dict()
-    print(f"[+] PASS: Allowed test succeeded! Real audit_log ID: {latest_log_doc.id}")
+    log_doc = db.collection("audit_log").document(audit_log_id).get()
+    assert log_doc.exists, f"audit_log doc {audit_log_id} not found in Firestore!"
+    log_data = log_doc.to_dict()
+    print(f"[+] PASS: Allowed test succeeded! Real audit_log ID: {audit_log_id}")
     print(f"    Agent ID: {log_data.get('agentId')}")
     print(f"    Policy Decision: {log_data.get('policyDecision')}")
     print(f"    Action: {log_data.get('action')}")
     print(f"    Latency: {log_data.get('latencyMs')} ms")
-    return log_data
+    return audit_log_id, log_data
 
 def test_denied_case():
     print("\n" + "=" * 60)
-    print("TEST 2: DENIED CASE (fraud-finance -> sandbox_employees)")
+    print("TEST 2: DENIED CASE (Check 3a - allowedCollections failure)")
     print("=" * 60)
     
     headers = {
@@ -86,25 +80,20 @@ def test_denied_case():
     res_data = response.json()
     assert res_data.get("policyDecision") == "denied"
     assert res_data.get("policyReason") is not None
+    audit_log_id = res_data.get("auditLogId")
+    assert audit_log_id is not None, "Gateway did not return auditLogId"
 
-    # Verify audit_log entry in Firestore
+    # Verify audit_log entry in Firestore by exact ID
     time.sleep(1)
-    logs = list(
-        db.collection("audit_log")
-        .where("agentId", "==", "fraud-finance")
-        .stream()
-    )
-
-    denied_logs = [d for d in logs if d.to_dict().get("policyDecision") == "denied"]
-    assert len(denied_logs) > 0, "No audit_log document found for denied call!"
-    latest_log_doc = denied_logs[-1]
-    log_data = latest_log_doc.to_dict()
-    print(f"[+] PASS: Denied test succeeded! Real audit_log ID: {latest_log_doc.id}")
+    log_doc = db.collection("audit_log").document(audit_log_id).get()
+    assert log_doc.exists, f"audit_log doc {audit_log_id} not found in Firestore!"
+    log_data = log_doc.to_dict()
+    print(f"[+] PASS: Check 3a Denied test succeeded! Real audit_log ID: {audit_log_id}")
     print(f"    Agent ID: {log_data.get('agentId')}")
     print(f"    Policy Decision: {log_data.get('policyDecision')}")
-    print(f"    Policy Reason: {log_data.get('policyReason')}")
+    print(f"    Policy Reason (Check 3a): {log_data.get('policyReason')}")
     print(f"    Latency: {log_data.get('latencyMs')} ms")
-    return log_data
+    return audit_log_id, log_data
 
 def test_denied_check_3b_policy_query():
     print("\n" + "=" * 60)
@@ -144,25 +133,21 @@ def test_denied_check_3b_policy_query():
         reason = res_data.get("policyReason", "")
         # Confirm policyReason comes specifically from Check 3b (pol-deny-finance-hr)
         assert "Least privilege policy violation" in reason or "Deny Finance Access to HR Data" in reason or "Finance department identities may not inspect HR employee records" in reason, f"Unexpected policy reason from 3b: {reason}"
+        
+        audit_log_id = res_data.get("auditLogId")
+        assert audit_log_id is not None, "Gateway did not return auditLogId"
 
-        # Verify audit_log entry in Firestore
+        # Verify audit_log entry in Firestore by exact ID
         time.sleep(1)
-        logs = list(
-            db.collection("audit_log")
-            .where("agentId", "==", "fraud-finance")
-            .stream()
-        )
-
-        denied_logs = [d for d in logs if d.to_dict().get("policyDecision") == "denied"]
-        assert len(denied_logs) > 0, "No audit_log document found for denied call!"
-        latest_log_doc = denied_logs[-1]
-        log_data = latest_log_doc.to_dict()
-        print(f"[+] PASS: Check 3b Policy Denial test succeeded! Real audit_log ID: {latest_log_doc.id}")
+        log_doc = db.collection("audit_log").document(audit_log_id).get()
+        assert log_doc.exists, f"audit_log doc {audit_log_id} not found in Firestore!"
+        log_data = log_doc.to_dict()
+        print(f"[+] PASS: Check 3b Policy Denial test succeeded! Real audit_log ID: {audit_log_id}")
         print(f"    Agent ID: {log_data.get('agentId')}")
         print(f"    Policy Decision: {log_data.get('policyDecision')}")
         print(f"    Policy Reason (Check 3b): {log_data.get('policyReason')}")
         print(f"    Latency: {log_data.get('latencyMs')} ms")
-        return log_data
+        return audit_log_id, log_data
     finally:
         # Restore original registry manifest
         reg_ref.update({"allowedCollections": orig_allowed})
@@ -170,12 +155,21 @@ def test_denied_check_3b_policy_query():
 
 def main():
     print(f"[*] Starting Gateway Automated Integration Tests against {GATEWAY_URL}...")
-    allowed_log = test_allowed_case()
-    denied_log = test_denied_case()
-    denied_3b_log = test_denied_check_3b_policy_query()
-    print("\n" + "=" * 60)
-    print("ALL GATEWAY INTEGRATION TESTS (INCLUDING CHECK 3b ISOLATION) PASSED PERFECTLY!")
-    print("=" * 60 + "\n")
+    allowed_id, allowed_log = test_allowed_case()
+    denied_3a_id, denied_3a_log = test_denied_case()
+    denied_3b_id, denied_3b_log = test_denied_check_3b_policy_query()
+
+    print("\n" + "=" * 70)
+    print("EXPLICIT DOCUMENT ID & REASON COMPARISON SUMMARY")
+    print("=" * 70)
+    print(f"  • Check 3a Denied Audit Document ID : {denied_3a_id}")
+    print(f"    Check 3a Policy Reason           : {denied_3a_log.get('policyReason')}")
+    print(f"  • Check 3b Denied Audit Document ID : {denied_3b_id}")
+    print(f"    Check 3b Policy Reason           : {denied_3b_log.get('policyReason')}")
+    print("-" * 70)
+    assert denied_3a_id != denied_3b_id, "ERROR: Document IDs for 3a and 3b must be distinct!"
+    print("[+] VERIFIED: Check 3a and Check 3b produced two DISTINCT real document IDs in Firestore!")
+    print("=" * 70 + "\n")
 
 if __name__ == "__main__":
     main()

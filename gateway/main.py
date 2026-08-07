@@ -45,8 +45,8 @@ def write_audit_log(
     policy_reason: Optional[str],
     armor_flags: List[str],
     latency_ms: float
-):
-    """Writes an immutable, redacted audit log entry directly to Firestore."""
+) -> Optional[str]:
+    """Writes an immutable, redacted audit log entry directly to Firestore and returns the document ID."""
     try:
         log_doc = {
             "agentId": agent_id,
@@ -60,9 +60,11 @@ def write_audit_log(
             "latencyMs": round(latency_ms, 2),
             "timestamp": firestore.SERVER_TIMESTAMP
         }
-        db.collection("audit_log").add(log_doc)
+        update_time, ref = db.collection("audit_log").add(log_doc)
+        return ref.id
     except Exception as e:
         print(f"[AuditLog] Error writing audit log: {e}")
+        return None
 
 def verify_token(authorization: Optional[str] = Header(None), x_emulated_sa: Optional[str] = Header(None)) -> str:
     """
@@ -124,14 +126,15 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
     if agent_status != "active":
         latency = (time.time() - start_time) * 1000
         reason = f"Agent '{agent_id}' status is '{agent_status}' (must be 'active')."
-        write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
+        log_id = write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "status": "denied",
                 "agentId": agent_id,
                 "policyDecision": "denied",
-                "policyReason": reason
+                "policyReason": reason,
+                "auditLogId": log_id
             }
         )
 
@@ -142,14 +145,15 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
     if req.collectionName and req.collectionName not in allowed_collections:
         latency = (time.time() - start_time) * 1000
         reason = f"Collection '{req.collectionName}' not listed in allowedCollections for agent '{agent_id}'."
-        write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
+        log_id = write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "status": "denied",
                 "agentId": agent_id,
                 "policyDecision": "denied",
-                "policyReason": reason
+                "policyReason": reason,
+                "auditLogId": log_id
             }
         )
 
@@ -164,14 +168,15 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
         pol_data = deny_policies[0].to_dict()
         reason = pol_data.get("reason") or pol_data.get("description") or f"Denied by policy {deny_policies[0].id}"
         latency = (time.time() - start_time) * 1000
-        write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
+        log_id = write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "status": "denied",
                 "agentId": agent_id,
                 "policyDecision": "denied",
-                "policyReason": reason
+                "policyReason": reason,
+                "auditLogId": log_id
             }
         )
 
@@ -184,7 +189,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
     if is_blocked:
         latency = (time.time() - start_time) * 1000
         reason = f"Model Armor inbound block flags triggered: {flags}"
-        write_audit_log(agent_id, None, req.action, req_str, "BLOCKED_BY_ARMOR", "denied", reason, armor_flags, latency)
+        log_id = write_audit_log(agent_id, None, req.action, req_str, "BLOCKED_BY_ARMOR", "denied", reason, armor_flags, latency)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
 
     # Stage 5 & 6: Tool Access & Forwarding to Target
@@ -214,12 +219,13 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
         armor_flags.extend(out_flags)
 
         latency = (time.time() - start_time) * 1000
-        write_audit_log(agent_id, None, req.action, req_str, str(clean_result), "allowed", None, armor_flags, latency)
+        log_id = write_audit_log(agent_id, None, req.action, req_str, str(clean_result), "allowed", None, armor_flags, latency)
 
         return {
             "status": "allowed",
             "agentId": agent_id,
             "policyDecision": "allowed",
+            "auditLogId": log_id,
             "data": result
         }
 
