@@ -17,8 +17,17 @@ class GatewayClient:
         headers = {"Content-Type": "application/json"}
         if os.getenv("ALLOW_LOCAL_AUTH_EMULATION", "false").lower() == "true":
             headers["x-emulated-sa"] = self.sa_email
-            headers["Authorization"] = f"Bearer {self.sa_email}"
+        else:
+            try:
+                import google.auth.transport.requests
+                import google.oauth2.id_token
+                auth_req = google.auth.transport.requests.Request()
+                token = google.oauth2.id_token.fetch_id_token(auth_req, self.gateway_url)
+                headers["Authorization"] = f"Bearer {token}"
+            except Exception as e:
+                print(f"[GatewayClient] Note: Could not fetch OIDC ID token ({e})")
         return headers
+
 
     def call_gateway(self, target_resource: str, collection_name: str, action: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.gateway_url}/v1/execute"

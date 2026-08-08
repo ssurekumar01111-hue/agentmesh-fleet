@@ -3,9 +3,11 @@ import json
 from typing import Dict, Any, Tuple, List
 from google.cloud import aiplatform
 from vertexai.generative_models import GenerativeModel
+from opentelemetry import trace
 
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "agentmesh-fleet-2026")
 LOCATION = os.getenv("VERTEX_AI_LOCATION", "asia-south1")
+tracer = trace.get_tracer("agentmesh-fraud-finance")
 
 class FraudReasoningEngine:
     """
@@ -25,26 +27,29 @@ class FraudReasoningEngine:
         Computes anomaly risk purely by comparing invoice amount against vendor's historical baseline.
         Returns: (risk_score: float [0.0-1.0], summary: str, findings: List[str], assessment_status: str)
         """
-        inv_id = invoice.get("id") or invoice.get("docId", "unknown")
-        amount = invoice.get("amount", 0.0)
-        description = invoice.get("description", "")
-        vendor_name = invoice.get("vendorName") or vendor.get("name", "Unknown Vendor")
-        
-        hist_pattern = vendor.get("historicalPaymentPattern", "No history available")
-        risk_notes = vendor.get("riskNotes", "No notes available")
+        with tracer.start_as_current_span("Gemini Reasoning Call") as span:
+            inv_id = invoice.get("id") or invoice.get("docId", "unknown")
+            amount = invoice.get("amount", 0.0)
+            description = invoice.get("description", "")
+            vendor_name = invoice.get("vendorName") or vendor.get("name", "Unknown Vendor")
+            
+            hist_pattern = vendor.get("historicalPaymentPattern", "No history available")
+            risk_notes = vendor.get("riskNotes", "No notes available")
 
-        # Sanitize invoice dict to explicitly strip any pre-set `is_anomalous` or `anomalyReason`
-        # guaranteeing reasoning is 100% computed fresh by LLM.
-        clean_invoice = {
-            "invoiceId": inv_id,
-            "amount": amount,
-            "currency": invoice.get("currency", "USD"),
-            "description": description,
-            "invoiceDate": invoice.get("invoiceDate"),
-            "vendorId": invoice.get("vendorId")
-        }
+            span.set_attribute("llm.model", "gemini-2.5-flash")
+            span.set_attribute("invoiceId", inv_id)
+            span.set_attribute("amount", amount)
 
-        prompt = f"""
+            clean_invoice = {
+                "invoiceId": inv_id,
+                "amount": amount,
+                "currency": invoice.get("currency", "USD"),
+                "description": description,
+                "invoiceDate": invoice.get("invoiceDate"),
+                "vendorId": invoice.get("vendorId")
+            }
+
+            prompt = f"""
 You are an expert Enterprise Fraud & Audit Reasoning Agent.
 Your task is to analyze an incoming invoice against vendor historical payment patterns and assess whether it represents a fraud risk or anomaly.
 
@@ -73,39 +78,43 @@ Respond ONLY with valid JSON in the following format:
   ]
 }}
 """
-        try:
-            res = self.model.generate_content(prompt)
-            text = res.text.strip()
-            # Clean JSON formatting if wrapped in codeblocks
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.endswith("```"):
-                text = text[:-3]
-            data = json.loads(text.strip())
+            try:
+                res = self.model.generate_content(prompt)
+                text = res.text.strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                data = json.loads(text.strip())
 
-            risk_score = float(data.get("riskScore", 0.0))
-            assessment_status = data.get("assessmentStatus", "LOW_RISK")
-            summary = data.get("summary", "Invoice review completed.")
-            findings = data.get("findings", [])
-            return risk_score, summary, findings, assessment_status
+                risk_score = float(data.get("riskScore", 0.0))
+                assessment_status = data.get("assessmentStatus", "LOW_RISK")
+                summary = data.get("summary", "Invoice review completed.")
+                findings = data.get("findings", [])
+                
+                span.set_attribute("riskScore", risk_score)
+                span.set_attribute("assessmentStatus", assessment_status)
+                return risk_score, summary, findings, assessment_status
 
-        except Exception as e:
-            print(f"[ReasoningEngine] Gemini call failed ({e}), falling back to deterministic baseline rule computation.")
-            # Deterministic backup logic in case LLM API quota/error occurs
-            # Extract numbers from historical pattern text if possible
-            is_high = amount > 50000.0 or "wire required" in description.lower() or "overhaul" in description.lower()
-            if is_high:
-                risk_score = 0.95
-                assessment_status = "HIGH_RISK"
-                summary = f"ANOMALOUS INVOICE: Invoice amount (${amount:,.2f}) exceeds historical vendor pattern."
-                findings = [
-                    f"Invoice amount of ${amount:,.2f} far exceeds historical payment baseline of '{hist_pattern}'.",
-                    f"Description '{description}' flags high risk."
-                ]
-            else:
-                risk_score = 0.10
-                assessment_status = "LOW_RISK"
-                summary = f"Normal invoice: ${amount:,.2f} within standard range."
-                findings = [f"Invoice amount ${amount:,.2f} aligns with vendor historical baseline '{hist_pattern}'."]
-            
-            return risk_score, summary, findings, assessment_status
+            except Exception as e:
+                span.record_exception(e)
+                print(f"[ReasoningEngine] Gemini call failed ({e}), falling back to deterministic baseline rule computation.")
+                is_high = amount > 50000.0 or "wire required" in description.lower() or "overhaul" in description.lower()
+                if is_high:
+                    risk_score = 0.95
+                    assessment_status = "HIGH_RISK"
+                    summary = f"ANOMALOUS INVOICE: Invoice amount (${amount:,.2f}) exceeds historical vendor pattern."
+                    findings = [
+                        f"Invoice amount of ${amount:,.2f} far exceeds historical payment baseline of '{hist_pattern}'.",
+                        f"Description '{description}' flags high risk."
+                    ]
+                else:
+                    risk_score = 0.10
+                    assessment_status = "LOW_RISK"
+                    summary = f"Normal invoice: ${amount:,.2f} within standard range."
+                    findings = [f"Invoice amount ${amount:,.2f} aligns with vendor historical baseline '{hist_pattern}'."]
+                
+                span.set_attribute("riskScore", risk_score)
+                span.set_attribute("assessmentStatus", assessment_status)
+                span.set_attribute("fallback", True)
+                return risk_score, summary, findings, assessment_status
