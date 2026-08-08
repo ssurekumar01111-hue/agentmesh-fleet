@@ -9,6 +9,9 @@ agent = FraudFinanceAgent()
 class InvestigationRequest(BaseModel):
     invoiceId: str
 
+class ResumeRequest(BaseModel):
+    workflowId: str
+
 @app.post("/investigate")
 def investigate_invoice(req: InvestigationRequest):
     try:
@@ -17,6 +20,15 @@ def investigate_invoice(req: InvestigationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/resume")
+def resume_workflow(req: ResumeRequest):
+    try:
+        res = agent.resume_workflow(req.workflowId)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agentmesh-fraud-finance"}
+
