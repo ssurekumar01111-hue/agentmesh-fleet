@@ -36,7 +36,7 @@ class ModelArmor:
         self.use_llm = True
         try:
             aiplatform.init(project=project_id, location=location)
-            self.model = GenerativeModel("gemini-1.5-flash")
+            self.model = GenerativeModel("gemini-2.5-flash")
         except Exception as e:
             print(f"[ModelArmor] Warning: Vertex AI init failed ({e}), falling back to regex armor.")
             self.use_llm = False

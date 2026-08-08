@@ -82,3 +82,41 @@ class FraudFinanceAgent:
             "summary": summary,
             "findings": findings
         }
+
+    def resume_workflow(self, workflow_id: str) -> Dict[str, Any]:
+        """Reads workflow from Gateway, verifies 'resumed' status, and completes workflow from persisted state."""
+        print(f"\n[*] [FraudFinanceAgent] Checking for resumed workflow '{workflow_id}' via Gateway...")
+        payload = {
+            "docId": workflow_id
+        }
+        res = self.client.call_gateway(
+            target_resource="firestore:workflows",
+            collection_name="workflows",
+            action="read",
+            payload=payload
+        )
+        if not res:
+            raise ValueError(f"Workflow '{workflow_id}' not found via Gateway.")
+
+        current_status = res.get("status")
+        if current_status != "resumed":
+            raise ValueError(f"Workflow '{workflow_id}' status is '{current_status}' (expected 'resumed').")
+
+        context = res.get("context", {})
+        context["resumedAt"] = "AUTO_TIMESTAMP"
+        context["finalResolution"] = "Human approval granted; invoice payment authorized."
+
+        self.client.update_workflow(
+            workflow_id=workflow_id,
+            status="completed",
+            current_step="review_complete",
+            context=context
+        )
+        print(f"[+] [FraudFinanceAgent] Workflow '{workflow_id}' successfully completed from persisted state!")
+
+        return {
+            "workflowId": workflow_id,
+            "status": "completed",
+            "currentStep": "review_complete",
+            "context": context
+        }
