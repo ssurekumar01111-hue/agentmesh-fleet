@@ -1,7 +1,7 @@
 # IT & Security Monitoring Agent (`agents/it-security`)
 
 ## Overview
-The **IT/Security Agent** is an autonomous security monitoring agent built using Google ADK and Gemini (`gemini-2.5-flash`) via Vertex AI.
+The **IT/Security Agent** is an autonomous security monitoring agent built using Google ADK and Gemini (`gemini-3.5-flash`) via Vertex AI.
 
 It scans repository commit histories and open issues for security threats, exposed secrets (e.g. AWS access keys, API tokens), and unauthorized configuration changes.
 
@@ -19,7 +19,7 @@ The Gateway accesses the GitHub Personal Access Token (PAT) securely from GCP Se
 
 ## Directory Structure
 - `agent.py`: ADK process flow for auditing repo activity and executing Gateway tool calls.
-- `reasoning.py`: Vertex AI Gemini (`gemini-2.5-flash`) security risk evaluation engine.
+- `reasoning.py`: Vertex AI Gemini (`gemini-3.5-flash`) security risk evaluation engine.
 - `gateway_client.py`: Gateway API client wrapper.
 - `main.py`: FastAPI HTTP endpoint exposing `/audit` and `/health`.
 - `test_agent.py`: Automated integration test script covering suspicious signal detection and clean state verification.

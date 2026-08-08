@@ -20,7 +20,7 @@ class FraudReasoningEngine:
         self.project_id = project_id
         self.location = location
         aiplatform.init(project=project_id, location=location)
-        self.model = GenerativeModel("gemini-2.5-flash")
+        self.model = GenerativeModel("gemini-3.5-flash")
 
     def analyze_invoice(self, invoice: Dict[str, Any], vendor: Dict[str, Any]) -> Tuple[float, str, List[str], str]:
         """
@@ -36,7 +36,8 @@ class FraudReasoningEngine:
             hist_pattern = vendor.get("historicalPaymentPattern", "No history available")
             risk_notes = vendor.get("riskNotes", "No notes available")
 
-            span.set_attribute("llm.model", "gemini-2.5-flash")
+            span.set_attribute("llm.model", "gemini-3.5-flash")
+
             span.set_attribute("invoiceId", inv_id)
             span.set_attribute("amount", amount)
 

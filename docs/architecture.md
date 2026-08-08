@@ -29,12 +29,13 @@ flowchart TD
         GW_SIM --> S1
     end
 
-    subgraph Agents["Domain Agent Fleet (Google ADK & Gemini 2.5 Flash on Cloud Run)"]
+    subgraph Agents["Domain Agent Fleet (Google ADK & Gemini 3.5 Flash on Cloud Run)"]
         AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)"]
         AG_IT["IT & Security Agent\n(agentmesh-it-security)"]
         AG_COMP["Compliance Agent\n(agentmesh-compliance)"]
 
-        GEMINI["Google Vertex AI\n(gemini-2.5-flash)"]
+        GEMINI["Google Vertex AI\n(gemini-3.5-flash)"]
+
         
         AG_FRAUD -->|Gemini Reasoning| GEMINI
         AG_IT -->|Gemini Reasoning| GEMINI

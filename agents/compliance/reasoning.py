@@ -19,7 +19,7 @@ class ComplianceReasoningEngine:
         self.project_id = project_id
         self.location = location
         aiplatform.init(project=project_id, location=location)
-        self.model = GenerativeModel("gemini-2.5-flash")
+        self.model = GenerativeModel("gemini-3.5-flash")
 
     def evaluate_workflow_compliance(
         self,
@@ -28,7 +28,8 @@ class ComplianceReasoningEngine:
         policies: List[Dict[str, Any]]
     ) -> Tuple[str, str, List[str]]:
         with tracer.start_as_current_span("Gemini Reasoning Call") as span:
-            span.set_attribute("llm.model", "gemini-2.5-flash")
+            span.set_attribute("llm.model", "gemini-3.5-flash")
+
 
             clean_policies = []
             for pol in policies:

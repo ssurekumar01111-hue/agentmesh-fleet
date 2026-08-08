@@ -19,11 +19,12 @@ class SecurityReasoningEngine:
         self.project_id = project_id
         self.location = location
         aiplatform.init(project=project_id, location=location)
-        self.model = GenerativeModel("gemini-2.5-flash")
+        self.model = GenerativeModel("gemini-3.5-flash")
 
     def analyze_repo_activity(self, issues: List[Dict[str, Any]], commits: List[Dict[str, Any]]) -> Tuple[float, str, List[str], str]:
         with tracer.start_as_current_span("Gemini Reasoning Call") as span:
-            span.set_attribute("llm.model", "gemini-2.5-flash")
+            span.set_attribute("llm.model", "gemini-3.5-flash")
+
             span.set_attribute("issues_count", len(issues))
             span.set_attribute("commits_count", len(commits))
 
@@ -39,9 +40,9 @@ RECENT COMMITS:
 
 INSTRUCTIONS:
 1. Examine all titles, commit messages, and issue descriptions for security threats (e.g., exposed API keys, AWS keys, passwords, unauthorized access, hardcoded secrets).
-2. Assign a Risk Score between 0.0 (clean repo) and 1.0 (critical security breach/leak detected).
-3. If suspicious activity is detected, mark assessmentStatus as "HIGH_RISK". Otherwise, mark "LOW_RISK".
-4. Provide a clear summary and specific findings referencing the exact issue title/number or commit message.
+2. If ANY issue or commit contains a secret key leak alert, exposed key, or suspicious credential activity, assign a Risk Score >= 0.85 and mark assessmentStatus as "HIGH_RISK". Otherwise, assign < 0.30 and "LOW_RISK".
+3. Provide a clear summary and specific findings referencing the exact issue title/number or commit message.
+
 
 Respond ONLY with valid JSON in the following format:
 {{

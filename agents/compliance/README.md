@@ -1,7 +1,7 @@
 # Compliance Agent (`agents/compliance`)
 
 ## Overview
-The **Compliance Agent** is an autonomous governance and policy evaluation agent built using the Google Agent Development Kit (ADK) and Gemini reasoning (`gemini-2.5-flash`) via Vertex AI.
+The **Compliance Agent** is an autonomous governance and policy evaluation agent built using the Google Agent Development Kit (ADK) and Gemini reasoning (`gemini-3.5-flash`) via Vertex AI.
 
 It performs two primary responsibilities within AgentMesh:
 1. **Workflow Compliance Review**: Evaluates paused invoice workflows (e.g. `wf-inv-2026-007` at `"waiting_approval"`) against enterprise governance rules (e.g. $50,000 dual sign-off threshold for vendors onboarded < 6 months), issuing a formal `ESCALATE`/`APPROVE`/`REJECT` assessment written directly to `memory`.
@@ -24,7 +24,7 @@ All Firestore access is mediated through the **AgentMesh Gateway** (`https://age
 
 ## Directory Structure
 - `agent.py`: Core agent logic for workflow review and zero-trust HR data test.
-- `reasoning.py`: Vertex AI Gemini (`gemini-2.5-flash`) policy reasoning engine.
+- `reasoning.py`: Vertex AI Gemini (`gemini-3.5-flash`) policy reasoning engine.
 - `gateway_client.py`: Gateway HTTP client for Compliance Agent identity.
 - `main.py`: FastAPI server serving `/health`, `/review`, and `/test-denied`.
 - `test_agent.py`: Integration test suite verifying both responsibilities.

@@ -1,7 +1,7 @@
 # Fraud & Finance Agent (`agents/fraud-finance`)
 
 ## Overview
-The **Fraud/Finance Agent** is an autonomous enterprise reasoning agent built using the Google Agent Development Kit (ADK) and Google GenAI Gemini models (`gemini-2.5-flash`) via Vertex AI.
+The **Fraud/Finance Agent** is an autonomous enterprise reasoning agent built using the Google Agent Development Kit (ADK) and Google GenAI Gemini models (`gemini-3.5-flash`) via Vertex AI.
 
 It evaluates incoming vendor invoices for financial fraud, payment anomalies, and compliance risk.
 
@@ -17,7 +17,7 @@ The agent computes anomaly risk **independently** by analyzing raw invoice amoun
 
 ## Directory Structure
 - `agent.py`: ADK agent process loop handling invoice fetching, reasoning, memory creation, and workflow escalation.
-- `reasoning.py`: Vertex AI Gemini (`gemini-2.5-flash`) reasoning engine.
+- `reasoning.py`: Vertex AI Gemini (`gemini-3.5-flash`) reasoning engine.
 - `gateway_client.py`: Client wrapper enforcing all request forwarding through AgentMesh Gateway.
 - `main.py`: FastAPI HTTP endpoint serving `/investigate` and `/health`.
 - `test_agent.py`: Automated integration test verifying anomalous (`inv-2026-007`) vs normal (`inv-2026-001`) invoices.
