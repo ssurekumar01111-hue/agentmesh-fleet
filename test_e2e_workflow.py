@@ -51,7 +51,10 @@ async def call_gateway_direct(caller_sa, resource, collection, action, payload):
     )
     res = await execute_request(req, FakeRequest(), caller_email=caller_sa)
     if hasattr(res, "body"):
-        return json.loads(res.body.decode("utf-8"))
+        data = json.loads(res.body.decode("utf-8"))
+        if isinstance(data, dict):
+            data["status_code"] = getattr(res, "status_code", 200)
+        return data
     return res
 
 def load_module(name, dir_path, filename):
