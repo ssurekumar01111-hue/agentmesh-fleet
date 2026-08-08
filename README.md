@@ -20,6 +20,7 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 | **Compliance Agent** | https://agentmesh-compliance-138003672216.asia-south1.run.app |
 | **Expense Approval Agent** | https://agentmesh-expense-approval-138003672216.asia-south1.run.app |
 | **HR Leave Assistant Agent** | https://agentmesh-hr-leave-138003672216.asia-south1.run.app |
+| **Legal Contract Agent** | https://agentmesh-legal-contract-138003672216.asia-south1.run.app |
 | **GitHub Sandbox Repo** | https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co. |
 | **This Repo** | https://github.com/ssurekumar01111-hue/agentmesh-fleet |
 | **GCP Cloud Trace** | https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026 |
@@ -36,7 +37,8 @@ agentmesh/
 │   ├── it-security/        # ADK agent — GitHub repo monitoring & incident triage
 │   ├── compliance/         # ADK agent — cross-department policy audit & zero-trust denial
 │   ├── expense-approval/   # ADK agent — employee expense policy review & workflow escalation
-│   └── hr-leave/           # ADK agent — employee leave request policy review & balance check
+│   ├── hr-leave/           # ADK agent — employee leave request policy review & balance check
+│   └── legal-contract/     # ADK agent — contract prose & clause policy review
 ├── dashboard/              # Next.js 15 Control Plane UI (5 tabs: Overview, Registry, Workflows, Policies, Observability)
 ├── sandbox-seed/           # Seeding scripts for Northbridge Retail Co. synthetic data
 ├── shared/                 # Firestore schema definitions and security rules

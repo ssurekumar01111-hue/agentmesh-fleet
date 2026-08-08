@@ -117,6 +117,30 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:agentmesh-hr-leave@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/cloudtrace.agent"
 ```
+
+## Legal Contract Agent (`agentmesh-legal-contract`)
+Needs Vertex AI + Firestore access + Cloud Trace access. Collection-level restriction —
+allowed to access `sandbox_contracts`, `memory`, `workflows`, `audit_log`,
+explicitly NOT `sandbox_invoices`, `sandbox_expenses`, `sandbox_leave_requests`, `sandbox_incidents` — is enforced
+via Firestore Security Rules and Gateway policy.
+
+```
+gcloud iam service-accounts create agentmesh-legal-contract \
+  --display-name="AgentMesh Legal Contract Agent" \
+  --project=$PROJECT_ID
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-legal-contract@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-legal-contract@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-legal-contract@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/cloudtrace.agent"
+```
 (Collection-level restriction — e.g. no access to `sandbox_invoices` or
 `sandbox_employees` data — is enforced via Firestore Security Rules keyed on the
 service account identity, see `shared/firestore.rules`.)

@@ -92,8 +92,48 @@ sandbox_employees/{employeeId}
 sandbox_incidents/{incidentId}
 sandbox_expenses/{expenseId}
 sandbox_leave_requests/{requestId}
+sandbox_contracts/{contractId}
 ```
 Seeded via `sandbox-seed/`, genuinely read/written by agents during workflows.
+
+## `sandbox_contracts` (collection)
+Vendor contracts, NDAs, and Master Service Agreements submitted for Legal team review.
+Read/written only by the `contract-review` agent (and Gateway). Deliberately **not**
+accessible to `fraud-finance`, `expense-approval`, `hr-leave`, `it-security`, or `compliance` agents.
+
+```
+sandbox_contracts/{contractId}
+  contractId:          string          # e.g. "ctr-2026-001" (matches doc ID)
+  vendorOrCounterparty: string          # e.g. "CloudScale IT Solutions"
+  contractType:        string          # "NDA" | "MSA" | "Vendor Agreement" | "SLA"
+  clauseSummary:       string          # real prose text summarizing key clauses
+  fullText:            string          # full contract prose text / key provisions
+  effectiveDate:       string          # ISO 8601 date, e.g. "2026-08-01"
+  expirationDate:      string          # ISO 8601 date, e.g. "2027-08-01"
+  autoRenew:           boolean         # whether contract auto-renews
+  autoRenewNoticeDays: number          # required notice period days prior to auto-renewal
+  governingLaw:        string          # jurisdiction, e.g. "Delaware", "New York", "Cayman Islands"
+  liabilityCapAmount:  number          # dollar amount cap (0 = unlimited / missing cap)
+  status:              string          # "pending_review" | "approved" | "flagged" | "escalated"
+  createdAt:           timestamp
+  updatedAt:           timestamp
+```
+
+### Planted policy-violating contract — `ctr-2026-005`
+Contract `ctr-2026-005` is the deliberately planted policy-violation seed record:
+- **Counterparty**: `Vortex Digital Marketing LLC`
+- **Contract Type**: `Vendor Agreement`
+- **Governing Law**: `Cayman Islands` (Northbridge policy requires Delaware, New York, or California)
+- **Liability Cap Amount**: `0` (Unlimited liability / missing liability cap; Northbridge policy requires a cap of <= 2x contract value)
+- **Auto-Renew Notice**: `3 days` (Northbridge policy requires at least 30 days notice prior to auto-renewal)
+- **Clause Summary Text**: "Vortex Digital Marketing LLC Master Media Agreement. Governing law: Cayman Islands. Northbridge Retail Co. agrees to unlimited liability for any claims arising under this agreement. Agreement auto-renews for 3-year term unless written notice is received 3 days prior to expiration. Northbridge provides full unilateral indemnification for all counterparty losses."
+
+This gives the `contract-review` agent **three independent, textually-rooted computable signals**:
+1. Non-compliant governing jurisdiction (`Cayman Islands`).
+2. Missing / zero liability cap (`0` / unlimited liability exposure).
+3. Unreasonable 3-day auto-renewal notice window & one-sided indemnification.
+
+The agent must analyze the raw contract fields and text prose; it must not read any pre-set `policyViolation` or `anomalyReason` flag.
 
 ## `sandbox_leave_requests` (collection)
 Employee PTO and leave requests submitted for HR team approval. Read/written only by

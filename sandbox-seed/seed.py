@@ -403,7 +403,105 @@ LEAVE_REQUESTS = [
     }
 ]
 
-# 5. sandbox_employees (7 employees)
+# 5. sandbox_contracts (5 contracts & NDAs)
+# =============================================================================
+# PLANTED POLICY-VIOLATING CONTRACT: "ctr-2026-005"
+# Counterparty: Vortex Digital Marketing LLC (v-105)
+# Contract Type: Vendor Agreement
+# Governing Law: Cayman Islands (Northbridge policy requires Delaware, NY, or CA)
+# Liability Cap Amount: 0 (Unlimited liability exposure / missing cap)
+# Auto-Renew Notice: 3 days (30 days minimum notice required)
+# Clause Summary Text: Unilateral indemnification, unlimited liability, 3-day notice.
+# Computable signals for Legal Contract Agent:
+#   1. governingLaw ('Cayman Islands') != Delaware/New York/California
+#   2. liabilityCapAmount == 0 (unlimited liability exposure)
+#   3. autoRenewNoticeDays (3) < 30-day minimum notice requirement
+# The agent must NOT read any pre-set policyViolation or anomalyReason flag.
+# =============================================================================
+CONTRACTS = [
+    {
+        "id": "ctr-2026-001",
+        "vendorOrCounterparty": "CloudScale IT Solutions",
+        "contractType": "MSA",
+        "clauseSummary": "Master Services Agreement for enterprise cloud infrastructure management. Governing law: Delaware. Liability capped at 2x annual fees ($1,000,000). Mutual indemnification for breach of confidentiality and IP infringement. 60 days written notice required prior to auto-renewal.",
+        "fullText": "This Master Services Agreement ('Agreement') is entered into as of August 1, 2026 by and between CloudScale IT Solutions Inc. and Northbridge Retail Co. Section 12.1 Governing Law: This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware. Section 14.2 Limitation of Liability: Neither party's aggregate liability under this Agreement shall exceed two times (2x) the total fees paid in the preceding 12 months ($1,000,000 USD). Section 15.1 Renewal: This Agreement shall automatically renew for successive 1-year terms unless either party provides written notice of non-renewal at least sixty (60) days prior to the expiration of the initial term.",
+        "effectiveDate": "2026-08-01",
+        "expirationDate": "2027-08-01",
+        "autoRenew": True,
+        "autoRenewNoticeDays": 60,
+        "governingLaw": "Delaware",
+        "liabilityCapAmount": 1000000.0,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "ctr-2026-002",
+        "vendorOrCounterparty": "Apex Logistics Network",
+        "contractType": "SLA",
+        "clauseSummary": "Service Level Agreement for regional warehouse freight dispatch. Governing law: New York. Liability cap set to $500,000 per incident. Standard mutual indemnification. 45 days notice for non-renewal.",
+        "fullText": "Apex Logistics Network Freight Dispatch SLA. Section 9.1 Jurisdiction: Governed by the laws of the State of New York. Section 11.4 Limitation of Liability: Total liability for logistics delays or damages is capped at $500,000 per incident. Section 13.2 Auto-Renewal: Requires 45 days advance notice to prevent auto-renewal.",
+        "effectiveDate": "2026-07-15",
+        "expirationDate": "2027-07-15",
+        "autoRenew": True,
+        "autoRenewNoticeDays": 45,
+        "governingLaw": "New York",
+        "liabilityCapAmount": 500000.0,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "ctr-2026-003",
+        "vendorOrCounterparty": "Sterling HR Systems",
+        "contractType": "NDA",
+        "clauseSummary": "Mutual Non-Disclosure Agreement for HR software evaluation. Governing law: Delaware. Term: 2 years. Confidentiality obligations survive for 3 years post-termination. Standard mutual remedies.",
+        "fullText": "Mutual Non-Disclosure Agreement between Sterling HR Systems LLC and Northbridge Retail Co. Section 8. Governing Law: State of Delaware. Section 4. Duration: Information shared under this Agreement shall remain confidential for a period of three (3) years from disclosure date.",
+        "effectiveDate": "2026-08-01",
+        "expirationDate": "2028-08-01",
+        "autoRenew": False,
+        "autoRenewNoticeDays": 0,
+        "governingLaw": "Delaware",
+        "liabilityCapAmount": 250000.0,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "ctr-2026-004",
+        "vendorOrCounterparty": "Pinnacle Retail Advisory",
+        "contractType": "Vendor Agreement",
+        "clauseSummary": "Retail strategy consulting agreement. Governing law: California. Liability cap: $100,000. 30 days notice for termination for convenience.",
+        "fullText": "Consulting Agreement with Pinnacle Retail Advisory Group. Section 10. Governing Law: State of California. Section 12. Limitation of Liability: Cap of $100,000 USD. Termination for convenience requires 30 days written notice.",
+        "effectiveDate": "2026-06-01",
+        "expirationDate": "2026-12-01",
+        "autoRenew": False,
+        "autoRenewNoticeDays": 0,
+        "governingLaw": "California",
+        "liabilityCapAmount": 100000.0,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "ctr-2026-005",   # <--- PLANTED POLICY VIOLATION
+        "vendorOrCounterparty": "Vortex Digital Marketing LLC",
+        "contractType": "Vendor Agreement",
+        "clauseSummary": "Vortex Digital Marketing LLC Master Media Agreement. Governing law: Cayman Islands. Northbridge Retail Co. agrees to unlimited liability for any claims arising under this agreement. Agreement auto-renews for 3-year term unless written notice is received 3 days prior to expiration. Northbridge provides full unilateral indemnification for all counterparty losses.",
+        "fullText": "Master Media Services Agreement between Vortex Digital Marketing LLC and Northbridge Retail Co. Section 14.1 Governing Law and Dispute Resolution: This Agreement and any disputes arising out of or related to it shall be exclusively governed by the laws of the Cayman Islands, without regard to conflict of laws principles. Section 16.3 Limitation of Liability: Northbridge Retail Co. expressly agrees that its liability under this Agreement shall be UNLIMITED for any indirect, direct, or consequential damages. Counterparty's total liability shall not exceed $100. Section 18.1 Renewal: This Agreement shall automatically renew for an additional three (3) year term unless Northbridge provides written notice of non-renewal at least three (3) business days prior to the expiration date. Section 19.2 Indemnification: Northbridge agrees to fully indemnify, defend, and hold harmless Vortex Digital Marketing LLC against any third-party claims, liabilities, or losses including counterparty gross negligence.",
+        "effectiveDate": "2026-08-01",
+        "expirationDate": "2027-08-01",
+        "autoRenew": True,
+        "autoRenewNoticeDays": 3,      # 3 days notice vs 30 required (27 days deficit)
+        "governingLaw": "Cayman Islands", # Cayman Islands vs Delaware/NY/CA required
+        "liabilityCapAmount": 0.0,    # 0 = unlimited liability / missing cap
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    }
+]
+
+# 6. sandbox_employees (7 employees)
 EMPLOYEES = [
     {
         "id": "emp-001",
@@ -716,6 +814,7 @@ def verify_readback(db):
         "sandbox_invoices",
         "sandbox_expenses",
         "sandbox_leave_requests",
+        "sandbox_contracts",
         "sandbox_employees",
         "sandbox_incidents",
         "agent_registry",
@@ -754,6 +853,19 @@ def verify_readback(db):
     else:
         print("  [-] ERROR: Planted leave request 'lvr-2026-006' not found!")
 
+    # Verify Planted Contract Violation
+    print("\n--- PLANTED CONTRACT VIOLATION VERIFICATION ---")
+    ctr_ref = db.collection("sandbox_contracts").document("ctr-2026-005").get()
+    if ctr_ref.exists:
+        ctr_data = ctr_ref.to_dict()
+        print(f"  [+] Found Contract ID: ctr-2026-005")
+        print(f"      Counterparty: {ctr_data.get('vendorOrCounterparty')}")
+        print(f"      Governing Law: {ctr_data.get('governingLaw')}")
+        print(f"      Liability Cap: ${ctr_data.get('liabilityCapAmount')}")
+        print(f"      Auto-Renew Notice: {ctr_data.get('autoRenewNoticeDays')} days")
+    else:
+        print("  [-] ERROR: Planted contract 'ctr-2026-005' not found!")
+
     # Verify Specific Denial Policy
     print("\n--- SPECIFIC DENIAL POLICY VERIFICATION ---")
     pol_ref = db.collection("policies").document("pol-deny-finance-hr").get()
@@ -779,6 +891,7 @@ def main():
     seed_collection(db, "sandbox_invoices", INVOICES)
     seed_collection(db, "sandbox_expenses", EXPENSES)
     seed_collection(db, "sandbox_leave_requests", LEAVE_REQUESTS)
+    seed_collection(db, "sandbox_contracts", CONTRACTS)
     seed_collection(db, "sandbox_employees", EMPLOYEES)
     seed_collection(db, "sandbox_incidents", INCIDENTS)
     seed_collection(db, "agent_registry", REGISTRY_ENTRIES)

@@ -1,0 +1,133 @@
+import os
+import requests
+from typing import Dict, Any, Optional, List
+
+GATEWAY_URL = os.getenv("GATEWAY_URL", "https://agentmesh-gateway-138003672216.asia-south1.run.app")
+PROJECT_ID = os.getenv("GCP_PROJECT_ID", "agentmesh-fleet-2026")
+SERVICE_ACCOUNT_EMAIL = f"agentmesh-legal-contract@{PROJECT_ID}.iam.gserviceaccount.com"
+
+
+class GatewayClient:
+    """Client for making all data/memory/workflow calls strictly through AgentMesh Gateway.
+
+    This agent NEVER touches Firestore directly — every call routes through Gateway.
+    Identity: agentmesh-legal-contract@agentmesh-fleet-2026.iam.gserviceaccount.com
+    """
+
+    def __init__(self, gateway_url: str = GATEWAY_URL, sa_email: str = SERVICE_ACCOUNT_EMAIL):
+        self.gateway_url = gateway_url.rstrip("/")
+        self.sa_email = sa_email
+
+    def _headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if os.getenv("ALLOW_LOCAL_AUTH_EMULATION", "false").lower() == "true":
+            headers["x-emulated-sa"] = self.sa_email
+        else:
+            try:
+                import google.auth.transport.requests
+                import google.oauth2.id_token
+                auth_req = google.auth.transport.requests.Request()
+                token = google.oauth2.id_token.fetch_id_token(auth_req, self.gateway_url)
+                headers["Authorization"] = f"Bearer {token}"
+            except Exception as e:
+                print(f"[GatewayClient] Note: Could not fetch OIDC ID token ({e})")
+        return headers
+
+    def call_gateway(
+        self,
+        target_resource: str,
+        collection_name: str,
+        action: str,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self.gateway_url}/v1/execute"
+        body = {
+            "callerServiceAccount": self.sa_email,
+            "targetResource": target_resource,
+            "collectionName": collection_name,
+            "action": action,
+            "payload": payload or {},
+        }
+        res = requests.post(url, json=body, headers=self._headers(), timeout=30)
+        if res.status_code != 200:
+            raise RuntimeError(f"Gateway call failed [{res.status_code}]: {res.text}")
+        return res.json().get("data", {})
+
+    # ------------------------------------------------------------------
+    # Domain-specific helpers
+    # ------------------------------------------------------------------
+
+    def get_contract(self, contract_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single contract/NDA via Gateway (sandbox_contracts collection)."""
+        return self.call_gateway(
+            target_resource="firestore:sandbox_contracts",
+            collection_name="sandbox_contracts",
+            action="read",
+            payload={"docId": contract_id},
+        )
+
+    # ------------------------------------------------------------------
+    # Memory & workflow helpers
+    # ------------------------------------------------------------------
+
+    def write_memory(
+        self,
+        case_id: str,
+        workflow_id: str,
+        entity_type: str,
+        summary: str,
+        findings: List[str],
+        risk_score: float,
+        history: List[str],
+    ) -> str:
+        payload = {
+            "docId": case_id,
+            "data": {
+                "workflowId": workflow_id,
+                "entityType": entity_type,
+                "entityId": case_id,
+                "summary": summary,
+                "findings": findings,
+                "riskScore": risk_score,
+                "history": history,
+                "updatedAt": "AUTO_TIMESTAMP",
+            },
+        }
+        self.call_gateway(
+            target_resource="firestore:memory",
+            collection_name="memory",
+            action="write",
+            payload=payload,
+        )
+        return case_id
+
+    def update_workflow(
+        self,
+        workflow_id: str,
+        status: str,
+        current_step: str,
+        context: Dict[str, Any],
+    ) -> str:
+        payload = {
+            "docId": workflow_id,
+            "data": {
+                "type": "contract-review",
+                "status": status,
+                "initiatingAgentId": "contract-review",
+                "involvedAgentIds": ["contract-review"],
+                "involvedServiceAccounts": [
+                    self.sa_email,
+                    f"agentmesh-gateway@{PROJECT_ID}.iam.gserviceaccount.com",
+                ],
+                "currentStep": current_step,
+                "context": context,
+                "updatedAt": "AUTO_TIMESTAMP",
+            },
+        }
+        self.call_gateway(
+            target_resource="firestore:workflows",
+            collection_name="workflows",
+            action="write",
+            payload=payload,
+        )
+        return workflow_id

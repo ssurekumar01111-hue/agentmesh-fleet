@@ -99,5 +99,15 @@ service cloud.firestore {
         "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
       ];
     }
+
+    // Legal Contracts & NDAs: legal-contract agent and Gateway only.
+    // Explicitly NOT granted to fraud-finance, expense-approval, hr-leave, it-security, or compliance —
+    // this enforces cross-department legal data segregation at the infra layer.
+    match /sandbox_contracts/{contractId} {
+      allow read, write: if request.auth.token.email in [
+        "agentmesh-legal-contract@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+    }
   }
 }

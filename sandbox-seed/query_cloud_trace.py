@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Query Cloud Trace for real trace IDs from agentmesh-hr-leave service.
+Query Cloud Trace for real trace IDs from agentmesh-legal-contract service.
 """
 import json
 import urllib.request
@@ -36,14 +36,14 @@ if __name__ == "__main__":
     token = get_token()
 
     print("=" * 70)
-    print("QUERYING CLOUD TRACE FOR HR LEAVE ASSISTANT SPANS")
+    print("QUERYING CLOUD TRACE FOR LEGAL CONTRACT SPANS")
     print("=" * 70)
 
     result = list_traces(token, minutes_back=30)
     traces = result.get("traces", [])
     print(f"Found {len(traces)} trace(s) in list response\n")
 
-    hr_traces = []
+    legal_traces = []
 
     for t in traces:
         tid = t["traceId"]
@@ -52,23 +52,23 @@ if __name__ == "__main__":
 
         span_names = [s.get("name", "") for s in spans]
         has_custom = any(
-            name in ("Review Leave Request Workflow", "Gemini Leave Reasoning Call")
+            name in ("Review Contract Workflow", "Gemini Contract Reasoning Call")
             for name in span_names
         )
-        has_hr_url = any(
-            "agentmesh-hr-leave" in str(s.get("labels", {}))
+        has_legal_url = any(
+            "agentmesh-legal-contract" in str(s.get("labels", {}))
             for s in spans
         )
 
-        if has_custom or has_hr_url:
-            hr_traces.append((tid, spans))
+        if has_custom or has_legal_url:
+            legal_traces.append((tid, spans))
 
-    print(f"Found {len(hr_traces)} HR Leave trace(s):\n")
+    print(f"Found {len(legal_traces)} Legal Contract trace(s):\n")
 
-    for tid, spans in hr_traces:
+    for tid, spans in legal_traces:
         print(f"=" * 70)
-        print(f"HR LEAVE TRACE ID: {tid}")
-        print(f"Cloud Trace URL  : https://console.cloud.google.com/traces/list?project={PROJECT_ID}&tid={tid}")
+        print(f"LEGAL CONTRACT TRACE ID: {tid}")
+        print(f"Cloud Trace URL        : https://console.cloud.google.com/traces/list?project={PROJECT_ID}&tid={tid}")
         print(f"=" * 70)
         for s in spans:
             name = s.get("name", "")
@@ -79,8 +79,8 @@ if __name__ == "__main__":
             print(f"    end:       {s.get('endTime')}")
             interesting = {k: v for k, v in labels.items()
                            if any(x in k.lower() for x in
-                                  ['url', 'status', 'request', 'risk', 'assessment',
-                                   'model', 'type', 'days', 'method'])}
+                                  ['url', 'status', 'contract', 'risk', 'assessment',
+                                   'model', 'law', 'cap', 'method'])}
             for k, v in interesting.items():
                 print(f"    {k}: {v}")
             print()
