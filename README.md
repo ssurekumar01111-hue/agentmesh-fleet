@@ -2,56 +2,78 @@
 
 Built for the **All Things Agentic Hackathon** — Fortified Enterprise Fleet track.
 
-AgentMesh is a real, production-grade platform for publishing, discovering, orchestrating,
-protecting, and auditing a fleet of AI agents across departments — demoed live against a
-self-built but fully real sandbox company, **Northbridge Retail Co.**
+AgentMesh is a real, production-grade control plane platform for publishing, discovering, orchestrating, protecting, and auditing a fleet of AI agents across departments — demoed live against a self-built synthetic enterprise, **Northbridge Retail Co.**
 
-## Repo structure
+---
 
-```
+## Live System URLs
+
+- **Control Plane Web Dashboard**: https://agentmesh-dashboard-138003672216.asia-south1.run.app
+- **AgentMesh Gateway Service**: https://agentmesh-gateway-138003672216.asia-south1.run.app
+- **Fraud & Finance Agent**: https://agentmesh-fraud-finance-138003672216.asia-south1.run.app
+- **IT & Security Agent**: https://agentmesh-it-security-138003672216.asia-south1.run.app
+- **Compliance Agent**: https://agentmesh-compliance-138003672216.asia-south1.run.app
+- **GitHub Sandbox Repository**: https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co.
+- **GCP Cloud Trace Console**: https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026
+
+---
+
+## Repository Structure
+
+```text
 agentmesh/
-├── gateway/            # Cloud Run service — auth, identity check, policy, Model Armor, routing
+├── gateway/            # Cloud Run service — 6-stage pipeline (Auth, Identity, Policy, Armor, Tool Access, Audit)
 ├── agents/
-│   ├── fraud-finance/  # ADK agent — invoice fraud investigation
-│   ├── it-security/    # ADK agent — GitHub repo monitoring
-│   └── compliance/     # ADK agent — cross-agent policy enforcement
-├── dashboard/          # React/Next control-plane UI (5 tabs)
-├── sandbox-seed/       # Scripts to seed Northbridge Retail Co. sandbox data + GitHub repo
-├── shared/             # Shared types/schemas used across services (registry manifest, memory schema)
-└── docs/               # Architecture diagram, submission write-up
+│   ├── fraud-finance/  # Google ADK agent — invoice fraud investigation & state resumption
+│   ├── it-security/    # Google ADK agent — GitHub repository monitoring & incident triage
+│   └── compliance/     # Google ADK agent — cross-department policy audit & zero-trust denial
+├── dashboard/          # Next.js 15 Control Plane UI (5 tabs: Fleet Overview, Registry, Live Workflows, Policy Playground, Observability)
+├── sandbox-seed/       # Seeding scripts & schemas for Northbridge Retail Co.
+├── shared/             # Shared Firestore schemas and domain models
+└── docs/               # Architecture diagrams and design specifications
 ```
 
-## Prerequisites
+---
 
-- Google Cloud project with billing enabled + $150 hackathon credit claimed
-- `gcloud` CLI authenticated to the project
-- Python 3.11+ (agents, gateway)
-- Node.js 20+ (dashboard)
-- Docker (for Cloud Run deploys)
-- Firebase CLI (if deploying dashboard to Firebase Hosting)
-- A GitHub PAT scoped to the sandbox repo only, stored in Secret Manager
+## Prerequisites & Spin-Up Guide
 
-## APIs to enable
+### 1. GCP Project & CLI Prerequisites
+- Google Cloud project ID: `agentmesh-fleet-2026`
+- Active GCP services enabled:
+  ```bash
+  gcloud services enable \
+    aiplatform.googleapis.com \
+    run.googleapis.com \
+    firestore.googleapis.com \
+    pubsub.googleapis.com \
+    secretmanager.googleapis.com \
+    cloudtrace.googleapis.com \
+    iam.googleapis.com
+  ```
 
+### 2. Sandbox Data Seeding
+To populate Firestore with Northbridge Retail Co. synthetic records, run:
+```bash
+python sandbox-seed/seed_data.py
 ```
-gcloud services enable \
-  aiplatform.googleapis.com \
-  run.googleapis.com \
-  firestore.googleapis.com \
-  pubsub.googleapis.com \
-  secretmanager.googleapis.com \
-  cloudtrace.googleapis.com \
-  iam.googleapis.com
+
+### 3. Service Deployments (Cloud Run)
+Deploy all instrumented services to Cloud Run:
+```bash
+gcloud run deploy agentmesh-gateway --source=gateway --region=asia-south1
+gcloud run deploy agentmesh-fraud-finance --source=agents/fraud-finance --region=asia-south1
+gcloud run deploy agentmesh-it-security --source=agents/it-security --region=asia-south1
+gcloud run deploy agentmesh-compliance --source=agents/compliance --region=asia-south1
+gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1
 ```
 
-## Local setup (per service)
+### 4. Running End-to-End Test Suite
+Run the comprehensive multi-agent workflow test suite locally or against deployed Cloud Run services:
+```bash
+python test_e2e_workflow.py
+```
 
-See each subdirectory's own README for spin-up instructions:
-- `gateway/README.md`
-- `agents/<agent-name>/README.md`
-- `dashboard/README.md`
-- `sandbox-seed/README.md`
+---
 
-## Status
-
-🚧 Week 1 — foundation phase. See `docs/build-plan.md` for the full roadmap.
+## Architecture & Design Documentation
+Detailed system architecture diagrams, zero-trust pipeline flows, and OpenTelemetry trace specifications are available in [`docs/architecture.md`](file:///C:/Users/gfood/Documents/agentmesh/docs/architecture.md).
