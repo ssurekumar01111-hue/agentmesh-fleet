@@ -88,6 +88,10 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:agentmesh-expense-approval@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-expense-approval@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/cloudtrace.agent"
 ```
 (Collection-level restriction — e.g. no access to `sandbox_invoices` or
 `sandbox_employees` data — is enforced via Firestore Security Rules keyed on the
