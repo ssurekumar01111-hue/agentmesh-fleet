@@ -1,5 +1,8 @@
 # AgentMesh — The Enterprise AI Control Plane
 
+[![Repo](https://img.shields.io/badge/GitHub-agentmesh--fleet-181717?logo=github)](https://github.com/ssurekumar01111-hue/agentmesh-fleet)
+[![All Things Agentic Hackathon](https://img.shields.io/badge/Hackathon-All%20Things%20Agentic-4285F4)](https://all-things-agentic.devpost.com/)
+
 Built for the **All Things Agentic Hackathon** — Fortified Enterprise Fleet track.
 
 AgentMesh is a real, production-grade control plane platform for publishing, discovering, orchestrating, protecting, and auditing a fleet of AI agents across departments — demoed live against a self-built synthetic enterprise, **Northbridge Retail Co.**
@@ -8,13 +11,17 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 
 ## Live System URLs
 
-- **Control Plane Web Dashboard**: https://agentmesh-dashboard-138003672216.asia-south1.run.app
-- **AgentMesh Gateway Service**: https://agentmesh-gateway-138003672216.asia-south1.run.app
-- **Fraud & Finance Agent**: https://agentmesh-fraud-finance-138003672216.asia-south1.run.app
-- **IT & Security Agent**: https://agentmesh-it-security-138003672216.asia-south1.run.app
-- **Compliance Agent**: https://agentmesh-compliance-138003672216.asia-south1.run.app
-- **GitHub Sandbox Repository**: https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co.
-- **GCP Cloud Trace Console**: https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026
+| Service | URL |
+|---------|-----|
+| **Control Plane Web Dashboard** | https://agentmesh-dashboard-138003672216.asia-south1.run.app |
+| **AgentMesh Gateway** | https://agentmesh-gateway-138003672216.asia-south1.run.app |
+| **Fraud & Finance Agent** | https://agentmesh-fraud-finance-138003672216.asia-south1.run.app |
+| **IT & Security Agent** | https://agentmesh-it-security-138003672216.asia-south1.run.app |
+| **Compliance Agent** | https://agentmesh-compliance-138003672216.asia-south1.run.app |
+| **Expense Approval Agent** | https://agentmesh-expense-approval-138003672216.asia-south1.run.app |
+| **GitHub Sandbox Repo** | https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co. |
+| **This Repo** | https://github.com/ssurekumar01111-hue/agentmesh-fleet |
+| **GCP Cloud Trace** | https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026 |
 
 ---
 
@@ -22,15 +29,16 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 
 ```text
 agentmesh/
-├── gateway/            # Cloud Run service — 6-stage pipeline (Auth, Identity, Policy, Armor, Tool Access, Audit)
+├── gateway/                # Cloud Run — 6-stage pipeline (Auth, Identity, Policy, Armor, Tool Access, Audit)
 ├── agents/
-│   ├── fraud-finance/  # Google ADK agent — invoice fraud investigation & state resumption
-│   ├── it-security/    # Google ADK agent — GitHub repository monitoring & incident triage
-│   └── compliance/     # Google ADK agent — cross-department policy audit & zero-trust denial
-├── dashboard/          # Next.js 15 Control Plane UI (5 tabs: Fleet Overview, Registry, Live Workflows, Policy Playground, Observability)
-├── sandbox-seed/       # Seeding scripts & schemas for Northbridge Retail Co.
-├── shared/             # Shared Firestore schemas and domain models
-└── docs/               # Architecture diagrams and design specifications
+│   ├── fraud-finance/      # ADK agent — invoice fraud investigation & state resumption
+│   ├── it-security/        # ADK agent — GitHub repo monitoring & incident triage
+│   ├── compliance/         # ADK agent — cross-department policy audit & zero-trust denial
+│   └── expense-approval/   # ADK agent — employee expense policy review & workflow escalation
+├── dashboard/              # Next.js 15 Control Plane UI (5 tabs: Overview, Registry, Workflows, Policies, Observability)
+├── sandbox-seed/           # Seeding scripts for Northbridge Retail Co. synthetic data
+├── shared/                 # Firestore schema definitions and security rules
+└── docs/                   # Architecture diagrams and design specifications
 ```
 
 ---
@@ -54,7 +62,7 @@ agentmesh/
 ### 2. Sandbox Data Seeding
 To populate Firestore with Northbridge Retail Co. synthetic records, run:
 ```bash
-python sandbox-seed/seed_data.py
+python sandbox-seed/seed.py
 ```
 
 ### 3. Service Deployments (Cloud Run)
@@ -64,6 +72,7 @@ gcloud run deploy agentmesh-gateway --source=gateway --region=asia-south1
 gcloud run deploy agentmesh-fraud-finance --source=agents/fraud-finance --region=asia-south1
 gcloud run deploy agentmesh-it-security --source=agents/it-security --region=asia-south1
 gcloud run deploy agentmesh-compliance --source=agents/compliance --region=asia-south1
+gcloud run deploy agentmesh-expense-approval --source=agents/expense-approval --region=asia-south1
 gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1
 ```
 
@@ -76,4 +85,4 @@ python test_e2e_workflow.py
 ---
 
 ## Architecture & Design Documentation
-Detailed system architecture diagrams, zero-trust pipeline flows, and OpenTelemetry trace specifications are available in [`docs/architecture.md`](file:///C:/Users/gfood/Documents/agentmesh/docs/architecture.md).
+Detailed system architecture diagrams, zero-trust pipeline flows, and OpenTelemetry trace specifications are available in [`docs/architecture.md`](docs/architecture.md).
