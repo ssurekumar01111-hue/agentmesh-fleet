@@ -8,15 +8,8 @@ import {
   IconClock,
   IconCheck,
   IconX,
-  IconArrowRight,
-  IconChecklist,
-  IconAlertCircle,
-  IconBuildingStore,
-  IconFileText,
-  IconUserCheck,
-  IconShield,
   IconActivity,
-  IconSearch,
+  IconShield,
   IconRefresh
 } from "@tabler/icons-react";
 
@@ -75,9 +68,13 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // Compute metric numbers for Overview tab from REAL data
-  const totalAgents = agents.length;
-  const activeAgentsCount = agents.filter((a) => a.status === "active").length;
+  // Separate domain fleet agents from platform infrastructure identities
+  const domainAgents = agents.filter((a) => a.agentType !== "platform" && a.docId !== "dashboard" && a.docId !== "gateway");
+  const platformIdentities = agents.filter((a) => a.agentType === "platform" || a.docId === "dashboard" || a.docId === "gateway");
+
+  // Compute metric numbers for Overview tab from DOMAIN FLEET AGENTS ONLY
+  const totalDomainAgents = domainAgents.length;
+  const activeDomainAgentsCount = domainAgents.filter((a) => a.status === "active").length;
   const runningWorkflowsCount = workflows.filter(
     (w) => w.status === "running" || w.status === "waiting_approval" || w.status === "resumed"
   ).length;
@@ -123,7 +120,6 @@ export default function Dashboard() {
 
     const wfId = selectedWorkflow.docId || selectedWorkflow.workflowId || "wf-inv-2026-009";
 
-    // Call Gateway to update workflow document status to "resumed"
     const updateRes = await fetchGatewayData(
       "firestore:workflows",
       "workflows",
@@ -240,7 +236,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="text-2xl font-semibold text-[#0f172a]">
-                      {activeAgentsCount} <span className="text-xs text-[#64748b] font-normal">/ {totalAgents} total</span>
+                      {activeDomainAgentsCount} <span className="text-xs text-[#64748b] font-normal">/ {totalDomainAgents} total domain fleet</span>
                     </div>
                   </div>
 
@@ -293,17 +289,17 @@ export default function Dashboard() {
                   <div className="lg:col-span-1 flat-card">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-sm font-semibold text-[#0f172a]">
-                        Agent registry preview
+                        Domain fleet agents
                       </h2>
                       <button
                         onClick={() => setActiveTab("registry")}
                         className="text-xs text-[#2563eb] hover:underline"
                       >
-                        View all ({totalAgents})
+                        View all ({totalDomainAgents})
                       </button>
                     </div>
                     <div className="space-y-3">
-                      {agents.slice(0, 5).map((agent, i) => (
+                      {domainAgents.slice(0, 5).map((agent, i) => (
                         <div
                           key={i}
                           className="flex items-center justify-between p-2.5 rounded-lg border border-[#f1f5f9] hover:bg-slate-50 transition"
@@ -383,15 +379,12 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-sm font-semibold text-[#0f172a]">
-                        Registered agent manifests
+                        Domain fleet agents ({domainAgents.length})
                       </h2>
                       <p className="text-xs text-[#64748b] mt-0.5">
-                        Enterprise multi-department agent registry from Firestore
+                        Enterprise department-level domain agents ({activeDomainAgentsCount} active)
                       </p>
                     </div>
-                    <span className="text-xs text-[#64748b]">
-                      Showing {agents.length} agent manifests ({activeAgentsCount} active)
-                    </span>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -407,7 +400,7 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9]">
-                        {agents.map((agent, i) => (
+                        {domainAgents.map((agent, i) => (
                           <tr key={i} className="hover:bg-slate-50/80 transition">
                             <td className="py-3 font-medium text-[#0f172a]">
                               {agent.name || agent.docId}
@@ -441,6 +434,46 @@ export default function Dashboard() {
                     </table>
                   </div>
                 </div>
+
+                {/* Separate Platform Infrastructure Section */}
+                {platformIdentities.length > 0 && (
+                  <div className="flat-card bg-slate-50/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-xs font-semibold text-[#475569] uppercase tracking-wider">
+                          Platform & Control Plane Infrastructure Identities ({platformIdentities.length})
+                        </h3>
+                        <p className="text-[11px] text-[#64748b]">
+                          Control plane service accounts (excluded from domain agent metrics)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {platformIdentities.map((infra, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between p-2.5 rounded-lg border border-[#e2e8f0] bg-white text-xs"
+                        >
+                          <div>
+                            <div className="font-medium text-[#0f172a]">
+                              {infra.name || infra.docId} <span className="pill-badge badge-gray text-[10px]">Platform</span>
+                            </div>
+                            <div className="text-[11px] text-[#64748b]">
+                              {infra.serviceAccountEmail}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSelectedAgent(infra)}
+                            className="text-xs text-[#2563eb] hover:underline font-medium"
+                          >
+                            View permissions
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Agent Detail Modal/Card */}
                 {selectedAgent && (
@@ -549,7 +582,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Real Approval Page Card (Required for Phase 4d stand-in replacement) */}
+                {/* Real Approval Page Card */}
                 {selectedWorkflow && (
                   <div className="flat-card border-amber-300 bg-white">
                     <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-3 mb-4">
