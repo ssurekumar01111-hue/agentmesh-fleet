@@ -1,27 +1,37 @@
 import { NextResponse } from 'next/server';
 
 const GATEWAY_URL = process.env.GATEWAY_URL || "https://agentmesh-gateway-138003672216.asia-south1.run.app";
-const DEFAULT_DASHBOARD_SA = "agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com";
+const DASHBOARD_SA = "agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { targetResource, collectionName, action, payload, callerServiceAccount } = body;
-    const effectiveSA = callerServiceAccount || DEFAULT_DASHBOARD_SA;
+    const { targetResource, collectionName, action, payload, simulate, targetAgentSa } = body;
 
-    const gatewayRes = await fetch(`${GATEWAY_URL}/v1/execute`, {
+    const endpoint = simulate ? `${GATEWAY_URL}/v1/simulate-policy` : `${GATEWAY_URL}/v1/execute`;
+
+    const requestBody = simulate
+      ? {
+          targetAgentSa: targetAgentSa || payload?.targetAgentSa,
+          targetResource,
+          collectionName,
+          action: action || "read",
+        }
+      : {
+          callerServiceAccount: DASHBOARD_SA,
+          targetResource,
+          collectionName,
+          action,
+          payload: payload || {},
+        };
+
+    const gatewayRes = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-emulated-sa": effectiveSA,
+        "x-emulated-sa": DASHBOARD_SA,
       },
-      body: JSON.stringify({
-        callerServiceAccount: effectiveSA,
-        targetResource,
-        collectionName,
-        action,
-        payload: payload || {},
-      }),
+      body: JSON.stringify(requestBody),
       cache: "no-store",
     });
 

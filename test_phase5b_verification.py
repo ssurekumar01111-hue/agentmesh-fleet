@@ -62,11 +62,11 @@ def run_e2e_verification():
     print("\n[Step 2: Policy Playground Live Test — Compliance -> sandbox_employees]")
     comp_sa = "agentmesh-compliance@agentmesh-fleet-2026.iam.gserviceaccount.com"
     deny_payload = {
+        "simulate": True,
+        "targetAgentSa": comp_sa,
         "targetResource": "firestore:sandbox_employees",
         "collectionName": "sandbox_employees",
-        "action": "read",
-        "payload": {},
-        "callerServiceAccount": comp_sa
+        "action": "read"
     }
 
     try:
@@ -75,11 +75,13 @@ def run_e2e_verification():
         deny_res = json.loads(e.read().decode("utf-8"))
 
     print(f"  • Policy Decision: {deny_res.get('policyDecision') or deny_res.get('status')}")
-    print(f"  • Agent ID       : {deny_res.get('agentId')}")
+    print(f"  • Target Agent SA: {deny_res.get('targetSa')}")
+    print(f"  • Simulated Tag  : {deny_res.get('simulated')}")
     print(f"  • Policy Reason  : {deny_res.get('policyReason') or deny_res.get('detail')}")
     print(f"  • Audit Log ID   : {deny_res.get('auditLogId')}")
 
     assert deny_res.get("policyDecision") == "denied" or deny_res.get("status") == "denied", "Expected DENIED"
+    assert deny_res.get("simulated") is True, "Expected simulated: true"
     assert "sandbox_employees" in (deny_res.get("policyReason") or deny_res.get("detail")), "Expected policy reason to reference sandbox_employees"
     assert deny_res.get("auditLogId") is not None, "Missing auditLogId"
 
@@ -87,20 +89,21 @@ def run_e2e_verification():
     print("\n[Step 3: Policy Playground Live Test — Fraud -> sandbox_invoices]")
     fraud_sa = "agentmesh-fraud-finance@agentmesh-fleet-2026.iam.gserviceaccount.com"
     allow_payload = {
+        "simulate": True,
+        "targetAgentSa": fraud_sa,
         "targetResource": "firestore:sandbox_invoices",
         "collectionName": "sandbox_invoices",
-        "action": "read",
-        "payload": {},
-        "callerServiceAccount": fraud_sa
+        "action": "read"
     }
 
     allow_res = call_dashboard_gateway(allow_payload)
     print(f"  • Policy Decision: {allow_res.get('policyDecision') or allow_res.get('status')}")
-    print(f"  • Agent ID       : {allow_res.get('agentId')}")
+    print(f"  • Target Agent SA: {allow_res.get('targetSa')}")
+    print(f"  • Simulated Tag  : {allow_res.get('simulated')}")
     print(f"  • Audit Log ID   : {allow_res.get('auditLogId')}")
-    print(f"  • Returned Records: {len(allow_res.get('data', [])) if isinstance(allow_res.get('data'), list) else 1}")
 
     assert allow_res.get("policyDecision") == "allowed" or allow_res.get("status") == "allowed", "Expected ALLOWED"
+    assert allow_res.get("simulated") is True, "Expected simulated: true"
     assert allow_res.get("auditLogId") is not None, "Missing auditLogId"
 
     # 4. Live Workflow Gate Review & Approval Test

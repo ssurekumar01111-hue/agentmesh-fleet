@@ -3,6 +3,7 @@
 AgentMesh Gateway Service — FastAPI App.
 Enforces 6-stage pipeline:
 Authentication -> Identity Check -> Policy Check -> Model Armor -> Tool Access / Forward -> Audit Logging.
+Also exposes a dedicated, authenticated Policy Simulation endpoint for zero-trust evaluation without tool execution.
 """
 
 import os
@@ -35,6 +36,12 @@ class GatewayRequest(BaseModel):
     action: str               # e.g., "read", "write", "query"
     payload: Optional[Dict[str, Any]] = None
 
+class PolicyCheckRequest(BaseModel):
+    targetAgentSa: str        # The identity to evaluate policy for e.g. agentmesh-compliance@...
+    targetResource: str       # e.g. "firestore:sandbox_employees"
+    collectionName: str       # e.g. "sandbox_employees"
+    action: str = "read"
+
 def write_audit_log(
     agent_id: str,
     workflow_id: Optional[str],
@@ -44,7 +51,8 @@ def write_audit_log(
     policy_decision: str,
     policy_reason: Optional[str],
     armor_flags: List[str],
-    latency_ms: float
+    latency_ms: float,
+    simulated: bool = False
 ) -> Optional[str]:
     """Writes an immutable, redacted audit log entry directly to Firestore and returns the document ID."""
     try:
@@ -58,6 +66,7 @@ def write_audit_log(
             "policyReason": policy_reason,
             "armorFlags": armor_flags,
             "latencyMs": round(latency_ms, 2),
+            "simulated": simulated,
             "timestamp": firestore.SERVER_TIMESTAMP
         }
         update_time, ref = db.collection("audit_log").add(log_doc)
@@ -69,8 +78,8 @@ def write_audit_log(
 def verify_token(authorization: Optional[str] = Header(None), x_emulated_sa: Optional[str] = Header(None)) -> str:
     """
     Stage 1: Authentication.
-    Verifies Cloud Run OIDC ID token, or uses local auth emulation header if explicitly enabled.
-    Returns caller service account email.
+    Verifies Cloud Run OIDC ID token, or uses local auth emulation header ONLY if ALLOW_LOCAL_AUTH_EMULATION is true.
+    Returns authenticated caller service account email.
     """
     if ALLOW_LOCAL_AUTH_EMULATION and x_emulated_sa:
         print(f"[Auth] Local Auth Emulation active for caller: {x_emulated_sa}")
@@ -96,13 +105,126 @@ def verify_token(authorization: Optional[str] = Header(None), x_emulated_sa: Opt
             detail=f"Invalid OIDC token: {str(e)}"
         )
 
+@app.post("/v1/simulate-policy")
+async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(verify_token)):
+    """
+    Dedicated Policy Simulation Endpoint:
+    Allows authenticated callers (e.g. Dashboard) to simulate zero-trust evaluation for a hypothetical target agent & resource pair
+    WITHOUT impersonating Stage 1 auth and WITHOUT executing underlying tool access/reads/writes.
+    Explicitly tags resulting audit log entries with `simulated: true`.
+    """
+    start_time = time.time()
+    target_sa = req.targetAgentSa
+
+    # Lookup target agent in registry
+    registry_query = db.collection("agent_registry").where("serviceAccountEmail", "==", target_sa).limit(1).stream()
+    registry_docs = list(registry_query)
+
+    if not registry_docs:
+        latency = (time.time() - start_time) * 1000
+        reason = f"Target identity '{target_sa}' not found in agent_registry."
+        log_id = write_audit_log("unknown", None, req.action, f"[SIMULATION] Check {target_sa} -> {req.targetResource}", "DENIED", "denied", reason, [], latency, simulated=True)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "denied",
+                "simulated": True,
+                "agentId": "unknown",
+                "targetSa": target_sa,
+                "policyDecision": "denied",
+                "policyReason": reason,
+                "auditLogId": log_id
+            }
+        )
+
+    agent_doc = registry_docs[0]
+    agent_manifest = agent_doc.to_dict()
+    agent_id = agent_doc.id
+    department = agent_manifest.get("department", "")
+    agent_status = agent_manifest.get("status", "")
+    allowed_collections = agent_manifest.get("allowedCollections", [])
+
+    if agent_status != "active":
+        latency = (time.time() - start_time) * 1000
+        reason = f"Agent '{agent_id}' status is '{agent_status}' (must be 'active')."
+        log_id = write_audit_log(agent_id, None, req.action, f"[SIMULATION] Check {agent_id} -> {req.targetResource}", "DENIED", "denied", reason, [], latency, simulated=True)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "denied",
+                "simulated": True,
+                "agentId": agent_id,
+                "targetSa": target_sa,
+                "policyDecision": "denied",
+                "policyReason": reason,
+                "auditLogId": log_id
+            }
+        )
+
+    # Policy Check 3a: Registry Allowed Collections check
+    if req.collectionName and req.collectionName not in allowed_collections:
+        latency = (time.time() - start_time) * 1000
+        reason = f"Collection '{req.collectionName}' not listed in allowedCollections for agent '{agent_id}'."
+        log_id = write_audit_log(agent_id, None, req.action, f"[SIMULATION] Check {agent_id} -> {req.targetResource}", "DENIED", "denied", reason, [], latency, simulated=True)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "denied",
+                "simulated": True,
+                "agentId": agent_id,
+                "targetSa": target_sa,
+                "policyDecision": "denied",
+                "policyReason": reason,
+                "auditLogId": log_id
+            }
+        )
+
+    # Policy Check 3b: Real Firestore Policies query
+    policies_query = db.collection("policies")\
+        .where("subjectDepartment", "==", department)\
+        .where("resource", "==", req.targetResource)\
+        .where("effect", "==", "deny").stream()
+
+    deny_policies = list(policies_query)
+    if deny_policies:
+        pol_data = deny_policies[0].to_dict()
+        reason = pol_data.get("reason") or pol_data.get("description") or f"Denied by policy {deny_policies[0].id}"
+        latency = (time.time() - start_time) * 1000
+        log_id = write_audit_log(agent_id, None, req.action, f"[SIMULATION] Check {agent_id} -> {req.targetResource}", "DENIED", "denied", reason, [], latency, simulated=True)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "denied",
+                "simulated": True,
+                "agentId": agent_id,
+                "targetSa": target_sa,
+                "policyDecision": "denied",
+                "policyReason": reason,
+                "auditLogId": log_id
+            }
+        )
+
+    # If all checks pass
+    latency = (time.time() - start_time) * 1000
+    reason = f"Access to '{req.targetResource}' is allowed for agent '{agent_id}' ({department} dept)."
+    log_id = write_audit_log(agent_id, None, req.action, f"[SIMULATION] Check {agent_id} -> {req.targetResource}", "ALLOWED", "allowed", reason, [], latency, simulated=True)
+    return {
+        "status": "allowed",
+        "simulated": True,
+        "agentId": agent_id,
+        "targetSa": target_sa,
+        "policyDecision": "allowed",
+        "policyReason": reason,
+        "auditLogId": log_id
+    }
+
 @app.post("/v1/execute")
 async def execute_request(req: GatewayRequest, request: Request, caller_email: str = Depends(verify_token)):
     start_time = time.time()
     agent_id = "unknown"
     armor_flags = []
     
-    # Override caller email from verified token
+    # Override caller email strictly from verified Stage 1 token
     sa_email = caller_email
 
     # Stage 2: Identity Check

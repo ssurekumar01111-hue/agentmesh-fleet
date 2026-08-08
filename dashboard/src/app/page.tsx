@@ -204,15 +204,23 @@ export default function Dashboard() {
 
     const targetResource = `firestore:${pgSelectedResource}`;
 
-    const gatewayRes = await fetchGatewayData(
-      targetResource,
-      pgSelectedResource,
-      "read",
-      {},
-      pgSelectedSa
-    );
-
-    setPgResult(gatewayRes);
+    try {
+      const res = await fetch("/api/gateway", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          simulate: true,
+          targetAgentSa: pgSelectedSa,
+          targetResource,
+          collectionName: pgSelectedResource,
+          action: "read",
+        }),
+      });
+      const gatewayRes = await res.json();
+      setPgResult(gatewayRes);
+    } catch (err) {
+      console.error("Policy playground error:", err);
+    }
     setPgRunning(false);
     // Refresh audit logs to reflect new evaluation
     const logRes = await fetchGatewayData("firestore:audit_log", "audit_log", "read");
