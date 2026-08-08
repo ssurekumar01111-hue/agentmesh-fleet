@@ -91,8 +91,46 @@ sandbox_invoices/{invoiceId}
 sandbox_employees/{employeeId}
 sandbox_incidents/{incidentId}
 sandbox_expenses/{expenseId}
+sandbox_leave_requests/{requestId}
 ```
 Seeded via `sandbox-seed/`, genuinely read/written by agents during workflows.
+
+## `sandbox_leave_requests` (collection)
+Employee PTO and leave requests submitted for HR team approval. Read/written only by
+the `leave-assistant` agent (and Gateway). Deliberately **not** accessible to
+`fraud-finance`, `expense-approval`, `it-security`, or `compliance` agents.
+
+```
+sandbox_leave_requests/{requestId}
+  requestId:        string          # e.g. "lvr-2026-001" (matches doc ID)
+  employeeId:       string          # ref to sandbox_employees/{employeeId}
+  department:       string          # submitting employee's dept, e.g. "Finance"
+  leaveType:        string          # "annual" | "sick" | "unpaid" | "bereavement" | "parental"
+  startDate:        string          # ISO 8601 date, e.g. "2026-08-15"
+  endDate:          string          # ISO 8601 date, e.g. "2026-08-25"
+  daysRequested:    number          # business/calendar leave days requested
+  remainingBalance: number          # employee's available PTO balance at time of request
+  submittedDate:    string          # ISO 8601 date request was submitted
+  status:           string          # "pending_review" | "approved" | "flagged" | "escalated"
+  createdAt:        timestamp
+  updatedAt:        timestamp
+```
+
+### Planted policy-violating leave request — `lvr-2026-006`
+Leave request `lvr-2026-006` is the deliberately planted policy-violation seed record:
+- **Employee**: `emp-002` (Marcus Chen, Senior AP Lead, Finance)
+- **Leave Type**: `annual`
+- **Days Requested**: 15 days (`startDate`: 2026-09-01, `endDate`: 2026-09-21)
+- **Remaining Balance**: 4 days
+- **Notice Period**: Submitted 2026-08-07 for leave starting 2026-09-01 (25 days notice vs 30 days required for >10 day leave)
+
+This gives the `leave-assistant` agent **two independent, computable signals** to
+reason against:
+1. `daysRequested` (15) > `remainingBalance` (4) → 11-day deficit (exceeds balance by 275%).
+2. Notice period (25 days) < 30 days required for leave requests over 10 days.
+
+The agent must compute these from raw field values; it must not read any pre-set
+`policyViolation` or `anomalyReason` flag.
 
 ## `sandbox_expenses` (collection)
 Employee expense reports submitted for Finance team approval. Read/written only by

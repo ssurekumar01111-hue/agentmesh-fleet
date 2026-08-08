@@ -89,5 +89,15 @@ service cloud.firestore {
         "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
       ];
     }
+
+    // HR Leave requests: hr-leave agent and Gateway only.
+    // Explicitly NOT granted to fraud-finance, expense-approval, it-security, or compliance —
+    // this enforces cross-department data segregation at the infra layer.
+    match /sandbox_leave_requests/{requestId} {
+      allow read, write: if request.auth.token.email in [
+        "agentmesh-hr-leave@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+    }
   }
 }

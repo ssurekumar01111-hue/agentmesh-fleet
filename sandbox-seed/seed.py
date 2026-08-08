@@ -288,7 +288,122 @@ EXPENSES = [
     }
 ]
 
-# 4. sandbox_employees (7 employees)
+# 4. sandbox_leave_requests (7 leave requests)
+# =============================================================================
+# PLANTED POLICY-VIOLATING LEAVE REQUEST: "lvr-2026-006"
+# Employee: emp-002 (Marcus Chen, Senior AP Lead, Finance)
+# Leave Type: annual
+# Days Requested: 15 days (2026-09-01 to 2026-09-21)
+# Remaining Balance: 4 days (11-day deficit, 275% over balance)
+# Submission Date: 2026-08-07 -> 25 days notice for a 15-day leave request
+#   (Northbridge policy requires at least 30 days notice for leave > 10 days)
+# Computable signals for the HR Leave Agent:
+#   1. daysRequested (15) > remainingBalance (4) -> 11-day balance deficit
+#   2. Notice period (25 days) < 30-day requirement for >10 day leave
+# The agent must NOT read any pre-set policyViolation or anomalyReason flag.
+# =============================================================================
+LEAVE_REQUESTS = [
+    {
+        "id": "lvr-2026-001",
+        "employeeId": "emp-002",
+        "department": "Finance",
+        "leaveType": "annual",
+        "startDate": "2026-08-18",
+        "endDate": "2026-08-22",
+        "daysRequested": 5,
+        "remainingBalance": 18,
+        "submittedDate": "2026-07-20",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-002",
+        "employeeId": "emp-005",
+        "department": "IT",
+        "leaveType": "sick",
+        "startDate": "2026-08-03",
+        "endDate": "2026-08-05",
+        "daysRequested": 2,
+        "remainingBalance": 10,
+        "submittedDate": "2026-08-03",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-003",
+        "employeeId": "emp-006",
+        "department": "Legal",
+        "leaveType": "annual",
+        "startDate": "2026-09-10",
+        "endDate": "2026-09-15",
+        "daysRequested": 3,
+        "remainingBalance": 12,
+        "submittedDate": "2026-08-01",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-004",
+        "employeeId": "emp-007",
+        "department": "Compliance",
+        "leaveType": "annual",
+        "startDate": "2026-08-25",
+        "endDate": "2026-08-29",
+        "daysRequested": 4,
+        "remainingBalance": 8,
+        "submittedDate": "2026-07-25",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-005",
+        "employeeId": "emp-004",
+        "department": "HR",
+        "leaveType": "bereavement",
+        "startDate": "2026-08-10",
+        "endDate": "2026-08-12",
+        "daysRequested": 3,
+        "remainingBalance": 5,
+        "submittedDate": "2026-08-09",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-006",   # <--- PLANTED POLICY VIOLATION
+        "employeeId": "emp-002",
+        "department": "Finance",
+        "leaveType": "annual",
+        "startDate": "2026-09-01",
+        "endDate": "2026-09-21",
+        "daysRequested": 15,    # 15 days requested vs 4 remaining (11-day deficit)
+        "remainingBalance": 4,
+        "submittedDate": "2026-08-07", # 25 days notice vs 30 days required for >10 day leave
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "lvr-2026-007",
+        "employeeId": "emp-003",
+        "department": "HR",
+        "leaveType": "annual",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-07",
+        "daysRequested": 5,
+        "remainingBalance": 15,
+        "submittedDate": "2026-08-05",
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    }
+]
+
+# 5. sandbox_employees (7 employees)
 EMPLOYEES = [
     {
         "id": "emp-001",
@@ -600,6 +715,7 @@ def verify_readback(db):
         "sandbox_vendors",
         "sandbox_invoices",
         "sandbox_expenses",
+        "sandbox_leave_requests",
         "sandbox_employees",
         "sandbox_incidents",
         "agent_registry",
@@ -626,6 +742,18 @@ def verify_readback(db):
     else:
         print("  [-] ERROR: Planted anomalous invoice 'inv-2026-007' not found!")
 
+    # Verify Planted Leave Request Violation
+    print("\n--- PLANTED LEAVE REQUEST VIOLATION VERIFICATION ---")
+    lvr_ref = db.collection("sandbox_leave_requests").document("lvr-2026-006").get()
+    if lvr_ref.exists:
+        lvr_data = lvr_ref.to_dict()
+        print(f"  [+] Found Leave Request ID: lvr-2026-006")
+        print(f"      Employee: {lvr_data.get('employeeId')} ({lvr_data.get('department')})")
+        print(f"      Days Requested: {lvr_data.get('daysRequested')} vs Balance: {lvr_data.get('remainingBalance')}")
+        print(f"      Dates: {lvr_data.get('startDate')} to {lvr_data.get('endDate')}")
+    else:
+        print("  [-] ERROR: Planted leave request 'lvr-2026-006' not found!")
+
     # Verify Specific Denial Policy
     print("\n--- SPECIFIC DENIAL POLICY VERIFICATION ---")
     pol_ref = db.collection("policies").document("pol-deny-finance-hr").get()
@@ -650,6 +778,7 @@ def main():
     seed_collection(db, "sandbox_vendors", VENDORS)
     seed_collection(db, "sandbox_invoices", INVOICES)
     seed_collection(db, "sandbox_expenses", EXPENSES)
+    seed_collection(db, "sandbox_leave_requests", LEAVE_REQUESTS)
     seed_collection(db, "sandbox_employees", EMPLOYEES)
     seed_collection(db, "sandbox_incidents", INCIDENTS)
     seed_collection(db, "agent_registry", REGISTRY_ENTRIES)
