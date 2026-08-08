@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-page: #f8fafc;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+  }
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom utility styles matching the flat design system */
+.flat-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 0.5px solid #e2e8f0;
+  padding: 1.25rem;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-green {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.badge-gray {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.badge-red {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.icon-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-green {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.chip-blue {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.chip-red {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.chip-purple {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
