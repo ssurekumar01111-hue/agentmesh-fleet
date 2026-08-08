@@ -79,5 +79,15 @@ service cloud.firestore {
         "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
       ];
     }
+
+    // Expense reports: expense-approval agent and Gateway only.
+    // Explicitly NOT granted to fraud-finance, hr, it-security, or compliance —
+    // this enforces departmental data segregation at the infra layer.
+    match /sandbox_expenses/{expenseId} {
+      allow read, write: if request.auth.token.email in [
+        "agentmesh-expense-approval@agentmesh-fleet-2026.iam.gserviceaccount.com",
+        "agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com"
+      ];
+    }
   }
 }

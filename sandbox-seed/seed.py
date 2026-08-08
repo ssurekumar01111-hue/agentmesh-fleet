@@ -172,7 +172,123 @@ INVOICES = [
     }
 ]
 
-# 3. sandbox_employees (7 employees)
+# 3. sandbox_expenses (7 expense reports)
+# =============================================================================
+# PLANTED POLICY-VIOLATING EXPENSE: "exp-2026-006"
+# Category: meals — Northbridge policy hard cap is $150 per claim.
+# Amount: $1,240.00 — 8× the hard cap.
+# Submission lag: expenseDate 2026-05-15, submittedDate 2026-08-07 = 84 days late.
+#   Northbridge policy requires receipts submitted within 30 days of expense.
+#   The lag of 84 days is 54 days beyond the policy window.
+# Receipt: receiptAttached = False — no receipt provided.
+# Three independent policy-violation signals the agent must compute from raw fields:
+#   1. amount ($1,240) vs meals hard cap ($150) → 8× overage
+#   2. (submittedDate - expenseDate) = 84 days > 30-day window → 54-day violation
+#   3. receiptAttached = False → automatic policy flag
+# The agent must NOT read any pre-set policyViolation or anomalyReason flag.
+# =============================================================================
+EXPENSES = [
+    {
+        "id": "exp-2026-001",
+        "employeeId": "emp-002",
+        "department": "Finance",
+        "amount": 345.80,
+        "category": "travel",
+        "description": "Train tickets NYC to Boston — vendor on-site meeting, 2-day trip",
+        "submittedDate": "2026-07-10",
+        "expenseDate": "2026-07-08",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-002",
+        "employeeId": "emp-005",
+        "department": "IT",
+        "amount": 599.00,
+        "category": "equipment",
+        "description": "USB-C docking station for home office setup — WFH peripherals refresh",
+        "submittedDate": "2026-07-15",
+        "expenseDate": "2026-07-12",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-003",
+        "employeeId": "emp-001",
+        "department": "Finance",
+        "amount": 210.00,
+        "category": "accommodation",
+        "description": "Marriott hotel — 1 night, annual finance summit in Chicago",
+        "submittedDate": "2026-07-20",
+        "expenseDate": "2026-07-17",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-004",
+        "employeeId": "emp-007",
+        "department": "Compliance",
+        "amount": 68.50,
+        "category": "meals",
+        "description": "Working lunch with external auditor — 2 people",
+        "submittedDate": "2026-07-22",
+        "expenseDate": "2026-07-21",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-005",
+        "employeeId": "emp-006",
+        "department": "Legal",
+        "amount": 249.00,
+        "category": "software",
+        "description": "Annual DocuSign Business plan renewal — e-signature for contract workflows",
+        "submittedDate": "2026-08-01",
+        "expenseDate": "2026-07-31",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-006",   # <--- PLANTED POLICY-VIOLATING EXPENSE
+        "employeeId": "emp-002",
+        "department": "Finance",
+        "amount": 1240.00,      # 8x the $150 meals hard cap
+        "category": "meals",
+        "description": "Team dinner and client entertainment — invited 3 clients + 4 internal staff, upscale steakhouse",
+        "submittedDate": "2026-08-07",   # 84 days after the expense date
+        "expenseDate": "2026-05-15",     # actual expense incurred in May
+        "receiptAttached": False,        # no receipt attached
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-007",
+        "employeeId": "emp-003",
+        "department": "HR",
+        "amount": 1150.00,
+        "category": "travel",
+        "description": "Round-trip flights to San Francisco — HR tech conference, pre-approved by CPO",
+        "submittedDate": "2026-08-05",
+        "expenseDate": "2026-08-03",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    }
+]
+
+# 4. sandbox_employees (7 employees)
 EMPLOYEES = [
     {
         "id": "emp-001",
@@ -239,7 +355,7 @@ EMPLOYEES = [
     }
 ]
 
-# 4. sandbox_incidents (1 starter incident)
+# 5. sandbox_incidents (1 starter incident)
 INCIDENTS = [
     {
         "id": "inc-2026-089",
@@ -255,7 +371,7 @@ INCIDENTS = [
     }
 ]
 
-# 5. agent_registry (10 entries total: 3 ACTIVE, 7 PENDING)
+# 6. agent_registry (10 entries total: 3 ACTIVE, 7 PENDING)
 REGISTRY_ENTRIES = [
     # Active Agent 1
     {
@@ -423,7 +539,7 @@ REGISTRY_ENTRIES = [
     }
 ]
 
-# 6. policies (App-layer mirror of Firestore infra rules)
+# 7. policies (App-layer mirror of Firestore infra rules)
 # =============================================================================
 # SPECIFIC DENIAL POLICY: "pol-deny-finance-hr"
 # Description: Strictly denies Finance / Fraud-Finance agents from accessing
@@ -483,6 +599,7 @@ def verify_readback(db):
     collections = [
         "sandbox_vendors",
         "sandbox_invoices",
+        "sandbox_expenses",
         "sandbox_employees",
         "sandbox_incidents",
         "agent_registry",
@@ -532,6 +649,7 @@ def main():
 
     seed_collection(db, "sandbox_vendors", VENDORS)
     seed_collection(db, "sandbox_invoices", INVOICES)
+    seed_collection(db, "sandbox_expenses", EXPENSES)
     seed_collection(db, "sandbox_employees", EMPLOYEES)
     seed_collection(db, "sandbox_incidents", INCIDENTS)
     seed_collection(db, "agent_registry", REGISTRY_ENTRIES)

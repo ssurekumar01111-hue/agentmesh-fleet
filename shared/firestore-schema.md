@@ -90,8 +90,62 @@ sandbox_vendors/{vendorId}
 sandbox_invoices/{invoiceId}
 sandbox_employees/{employeeId}
 sandbox_incidents/{incidentId}
+sandbox_expenses/{expenseId}
 ```
 Seeded via `sandbox-seed/`, genuinely read/written by agents during workflows.
+
+## `sandbox_expenses` (collection)
+Employee expense reports submitted for Finance team approval. Read/written only by
+the `expense-approval` agent (and Gateway). Deliberately **not** accessible to
+`fraud-finance`, `hr` or any other department agent.
+
+```
+sandbox_expenses/{expenseId}
+  expenseId:      string          # e.g. "exp-2026-001" (matches doc ID)
+  employeeId:     string          # ref to sandbox_employees/{employeeId}
+  department:     string          # submitting employee's dept, e.g. "Sales"
+  amount:         number          # expense amount in USD
+  category:       string          # "travel" | "meals" | "equipment" | "accommodation" | "software"
+  description:    string          # free-text employee-provided description
+  submittedDate:  string          # ISO 8601 date the report was filed, e.g. "2026-08-01"
+  expenseDate:    string          # ISO 8601 date the actual expense was incurred
+  receiptAttached: boolean        # whether a receipt was attached at submission
+  status:         string          # "pending_review" | "approved" | "flagged" | "escalated"
+  createdAt:      timestamp
+  updatedAt:      timestamp
+```
+
+### Category policy baselines (agent-discoverable via Gemini reasoning)
+These are the internal Northbridge Retail Co. policy limits the expense-approval agent
+reasons against. They are **not** stored as a separate collection — the agent is
+prompted with this reference and must independently decide whether a submitted expense
+falls within or outside the expected range.
+
+| Category      | Typical per-claim range | Hard cap (requires VP approval) |
+|---------------|------------------------|----------------------------------|
+| travel        | $200 – $1,500          | $3,000                           |
+| meals         | $15 – $75 per person   | $150 per claim                   |
+| equipment     | $100 – $800            | $2,000                           |
+| accommodation | $80 – $250 per night   | $500 per night                   |
+| software      | $20 – $300 per license | $1,000 per claim                 |
+
+### Planted policy-violating expense — `exp-2026-006`
+Expense `exp-2026-006` is the deliberately planted policy-violation seed record:
+- **Category**: `meals` — per-claim hard cap is $150.
+- **Amount**: $1,240.00 — 8× the hard cap.
+- **Description**: "Team dinner and client entertainment — invited 3 clients + 4 internal"
+- **submittedDate**: `2026-08-07` / **expenseDate**: `2026-05-15` — submitted **84 days**
+  after the meal occurred, far beyond the 30-day Northbridge receipt-submission policy.
+- **receiptAttached**: `false` — no receipt provided.
+
+This gives the expense-approval agent **three independent, computable signals** to
+reason against:
+1. Amount ($1,240) vs meals hard cap ($150) → 8× overage.
+2. Submission lag (84 days) vs 30-day policy window → 54-day violation.
+3. Missing receipt → automatic policy flag.
+
+The agent must compute all three from raw field values; it must not read any pre-set
+`policyViolation` or `anomalyReason` flag.
 
 ---
 

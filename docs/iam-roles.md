@@ -70,6 +70,29 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/datastore.viewer"
 ```
 
+## Expense Approval Agent (`agentmesh-expense-approval`)
+Only needs Vertex AI + Firestore access (enforced at Gateway; this IAM grant is
+the infra-layer backstop). Collection-level restriction — no access to
+`sandbox_invoices`, `sandbox_employees`, `sandbox_incidents`, or other departments'
+data — is enforced via Firestore Security Rules keyed on the service account identity.
+
+```
+gcloud iam service-accounts create agentmesh-expense-approval \
+  --display-name="AgentMesh Expense Approval Agent" \
+  --project=$PROJECT_ID
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-expense-approval@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:agentmesh-expense-approval@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+```
+(Collection-level restriction — e.g. no access to `sandbox_invoices` or
+`sandbox_employees` data — is enforced via Firestore Security Rules keyed on the
+service account identity, see `shared/firestore.rules`.)
+
 ## Principle
 
 IAM grants here are intentionally coarse (Firestore doesn't support fine-grained
