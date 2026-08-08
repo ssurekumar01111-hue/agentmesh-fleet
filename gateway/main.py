@@ -380,8 +380,14 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                             doc_ref = db.collection(req.collectionName).document(req.payload["docId"]).get()
                             result = doc_ref.to_dict() if doc_ref.exists else None
                         else:
-                            docs = db.collection(req.collectionName).limit(20).stream()
-                            result = [d.to_dict() for d in docs]
+                            docs = db.collection(req.collectionName).limit(50).stream()
+                            result = []
+                            for d in docs:
+                                item = d.to_dict()
+                                if isinstance(item, dict) and "docId" not in item:
+                                    item["docId"] = d.id
+                                result.append(item)
+
                     elif req.action == "write":
                         doc_id = req.payload.get("docId")
                         data = req.payload.get("data", {})

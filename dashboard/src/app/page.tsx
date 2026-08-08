@@ -455,8 +455,9 @@ export default function Dashboard() {
                         >
                           <div>
                             <div className="text-xs font-medium text-[#0f172a]">
-                              {agent.name || agent.docId}
+                              {agent.agentName || agent.name || agent.docId}
                             </div>
+
                             <div className="text-[11px] text-[#64748b]">
                               {agent.department || "Operations"} • v{agent.version || "1.0"}
                             </div>
@@ -552,11 +553,12 @@ export default function Dashboard() {
                         {domainAgents.map((agent, i) => (
                           <tr key={i} className="hover:bg-slate-50/80 transition">
                             <td className="py-3 font-medium text-[#0f172a]">
-                              {agent.name || agent.docId}
+                              {agent.agentName || agent.name || agent.docId}
                               <div className="text-[11px] text-[#64748b] font-normal font-mono">
                                 {agent.serviceAccountEmail}
                               </div>
                             </td>
+
                             <td className="py-3 text-[#475569]">{agent.department || "Operations"}</td>
                             <td className="py-3">
                               <span
