@@ -18,6 +18,7 @@ class GatewayClient:
         try:
             from opentelemetry import propagate
             propagate.inject(headers)
+            print(f"[GatewayClient] Injected traceparent: {headers.get('traceparent')}")
         except Exception as e:
             print(f"[GatewayClient] Note: Could not inject traceparent context: {e}")
 

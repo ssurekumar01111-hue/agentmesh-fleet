@@ -250,6 +250,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
     from opentelemetry import propagate
     parent_ctx = propagate.extract(dict(request.headers))
+    print(f"[Gateway] Received traceparent header: {request.headers.get('traceparent')}")
 
     with tracer.start_as_current_span("Gateway Full Pipeline", context=parent_ctx) as pipe_span:
         pipe_span.set_attribute("callerServiceAccount", sa_email)
