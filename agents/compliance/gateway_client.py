@@ -73,13 +73,30 @@ class GatewayClient:
         return res.get("data") if res.get("success") else None
 
     def get_policies(self) -> List[Dict[str, Any]]:
+        """
+        Fetch all enterprise policy documents from the 'policies' collection via Gateway.
+
+        Phase 9b bug fix: changed action from 'query' to 'read' with no docId.
+        The Gateway's /v1/execute handler (gateway/main.py lines 383-389) routes
+        action='read' with no docId to db.collection(collectionName).limit(50).stream(),
+        streaming all documents in the collection.
+        The old action='query' fell into the else-branch returning {"status":"forwarded","collection":"policies"}
+        with no actual document data — causing the compliance agent to always reason with zero policies.
+        """
         res = self.call_gateway(
             target_resource="firestore:policies",
             collection_name="policies",
-            action="query",
-            payload={"query": []}
+            action="read",
+            payload={}
         )
-        return res.get("data", {}).get("documents", []) if res.get("success") else []
+        # Gateway returns: {"status":"allowed","data":[{...},{...},...]} for collection-stream reads
+        data = res.get("data", {})
+        if isinstance(data, list):
+            return data
+        # Fallback: if data is a dict with "success" key (error path)
+        if res.get("success") is False:
+            return []
+        return []
 
     def write_compliance_memory(self, case_id: str, workflow_id: str, entity_type: str, summary: str, findings: List[str], assessment_decision: str, history: List[str]) -> str:
         compliance_case_id = f"compliance-{case_id}"
