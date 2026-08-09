@@ -72,12 +72,12 @@ python sandbox-seed/seed.py
 ### 3. Service Deployments (Cloud Run)
 Deploy all instrumented services to Cloud Run:
 ```bash
-gcloud run deploy agentmesh-gateway --source=gateway --region=asia-south1
-gcloud run deploy agentmesh-fraud-finance --source=agents/fraud-finance --region=asia-south1
-gcloud run deploy agentmesh-it-security --source=agents/it-security --region=asia-south1
-gcloud run deploy agentmesh-compliance --source=agents/compliance --region=asia-south1
-gcloud run deploy agentmesh-expense-approval --source=agents/expense-approval --region=asia-south1
-gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1
+gcloud run deploy agentmesh-gateway --source=gateway --region=asia-south1 --service-account=agentmesh-gateway@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-fraud-finance --source=agents/fraud-finance --region=asia-south1 --service-account=agentmesh-fraud-finance@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-it-security --source=agents/it-security --region=asia-south1 --service-account=agentmesh-it-security@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-compliance --source=agents/compliance --region=asia-south1 --service-account=agentmesh-compliance@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-expense-approval --source=agents/expense-approval --region=asia-south1 --service-account=agentmesh-expense-approval@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1 --service-account=agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com
 ```
 
 ### 4. Running End-to-End Test Suite

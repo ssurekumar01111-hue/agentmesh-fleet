@@ -19,9 +19,8 @@ All data rendered in the dashboard is **100% real** and dynamically fetched from
 4. **Policies**: Enterprise access rules & zero-trust enforcement status.
 5. **Observability**: Real-time audit logs & Gateway execution traces.
 
-## Local Development
+## Cloud Run Deployment
 ```bash
-npm install
-npm run dev
+gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1 --service-account=agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com
 ```
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard locally.
+
