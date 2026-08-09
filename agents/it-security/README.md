@@ -1,9 +1,22 @@
 # IT & Security Monitoring Agent (`agents/it-security`)
 
 ## Overview
-The **IT/Security Agent** is an autonomous security monitoring agent built using Google ADK and Gemini (`gemini-3.5-flash`) via Vertex AI.
+The **IT/Security Agent** is an autonomous security monitoring agent built using the official **Google Agent Development Kit (`google-adk` v2.6+)** and Google GenAI Gemini models (`gemini-3.5-flash`) via Vertex AI.
 
 It scans repository commit histories and open issues for security threats, exposed secrets (e.g. AWS access keys, API tokens), and unauthorized configuration changes.
+
+## ADK Integration Architecture (Phase 9b)
+The agent is constructed using native ADK abstractions, following the same pattern as `agents/fraud-finance`:
+- **`google.adk.agents.LlmAgent`**: Defines the agent's identity, `gemini-3.5-flash` model reference, system instructions, and tool bindings.
+- **`google.adk.tools.FunctionTool`**: Wraps all Gateway calls into native ADK tool definitions:
+  - `list_issues` — lists GitHub repo issues via Gateway
+  - `list_commits` — lists GitHub repo commits via Gateway
+  - `create_issue` — creates GitHub issues via Gateway
+  - `write_memory` — writes findings to Firestore memory via Gateway
+  - `update_incident` — updates incident records via Gateway
+  - `update_workflow` — updates workflow state via Gateway
+- **`google.adk.runners.Runner`**: Manages the multi-turn agent execution loop and tool calling runtime.
+- **`google.adk.sessions.InMemorySessionService`**: Provides ADK session state management (no conflict with existing telemetry).
 
 ## Security Architecture & Zero Bypass
 This agent **NEVER** communicates directly with Firestore or GitHub.
@@ -17,13 +30,17 @@ The Gateway accesses the GitHub Personal Access Token (PAT) securely from GCP Se
 3. **Automated Issue Remediation**: Automatically opens an issue on the target GitHub repository (`ssurekumar01111-hue/Northbridge-Retail-Co.`) documenting the risk score, summary, and specific findings.
 4. **Firestore Tracking**: Updates `memory`, `workflows`, and `sandbox_incidents` (`inc-2026-001`).
 
+## OpenTelemetry Observability
+The agent uses the existing `telemetry.py` (`init_tracer`) for FastAPI + requests instrumentation.
+ADK uses its own internal tracer (`google.adk.*`) on a separate namespace — no conflict or duplication with the agent's tracer. Spans from both are exported independently to GCP Cloud Trace.
+
 ## Directory Structure
-- `agent.py`: ADK process flow for auditing repo activity and executing Gateway tool calls.
+- `agent.py`: Native ADK agent implementation using `LlmAgent`, `FunctionTool`, `Runner`, and `InMemorySessionService`.
 - `reasoning.py`: Vertex AI Gemini (`gemini-3.5-flash`) security risk evaluation engine.
 - `gateway_client.py`: Gateway API client wrapper.
 - `main.py`: FastAPI HTTP endpoint exposing `/audit` and `/health`.
 - `test_agent.py`: Automated integration test script covering suspicious signal detection and clean state verification.
-- `Dockerfile` & `requirements.txt`: Cloud Run deployment files.
+- `Dockerfile` & `requirements.txt`: Cloud Run deployment files (`google-adk>=2.6.0`).
 
 ## Deployment Details
 - **Cloud Run Service**: `agentmesh-it-security`
