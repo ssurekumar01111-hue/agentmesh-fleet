@@ -25,20 +25,20 @@ INJECTION_PATTERNS = [
     re.compile(r"override\s+security\s+policy", re.IGNORECASE),
 ]
 
-class ModelArmor:
+class GuardPipeline:
     """
-    Inline Model Armor Security Scanner.
-    Executes pattern scanning + optional Gemini Flash classification call.
+    Inline Guard Pipeline Security Scanner.
+    Scans inputs and outputs for prompt injection, secret leaks, and PII leaks.
     """
-    def __init__(self, project_id: str, location: str = "asia-south1"):
+    def __init__(self, project_id: str = "agentmesh-fleet-2026"):
         self.project_id = project_id
-        self.location = location
-        self.use_llm = True
+        self.vertex_initialized = False
         try:
-            aiplatform.init(project=project_id, location=location)
-            self.model = GenerativeModel("gemini-3.5-flash")
+            vertexai.init(project=project_id, location="us-central1")
+            self.model = GenerativeModel("gemini-1.5-flash")
+            self.vertex_initialized = True
         except Exception as e:
-            print(f"[ModelArmor] Warning: Vertex AI init failed ({e}), falling back to regex armor.")
+            print(f"[GuardPipeline] Warning: Vertex AI init failed ({e}), falling back to regex armor.")
             self.use_llm = False
 
     def scan_content(self, content_str: str) -> Tuple[bool, List[str], str]:
@@ -83,12 +83,12 @@ class ModelArmor:
                 if "MALICIOUS" in res_text:
                     flags.append("prompt_injection_llm")
             except Exception as e:
-                print(f"[ModelArmor] LLM classification error (bypassing LLM check): {e}")
+                print(f"[GuardPipeline] LLM classification error (bypassing LLM check): {e}")
 
         is_blocked = len(flags) > 0
         clean_content = content_str
         if "secret_leakage" in flags or "pii_leakage" in flags:
             # Redact secrets / PII from output if returning blocked summary
-            clean_content = "[REDACTED_CONTENT_BLOCKED_BY_MODEL_ARMOR]"
+            clean_content = "[REDACTED_CONTENT_BLOCKED_BY_GUARD_PIPELINE]"
 
         return is_blocked, flags, clean_content

@@ -18,7 +18,7 @@ flowchart TD
             S1["Stage 1: Auth Verification (OIDC Token Validation)"]
             S2["Stage 2: Identity Check (Firestore Registry Validation)"]
             S3["Stage 3: Policy Engine Check (Collection & Deny Rules)"]
-            S4["Stage 4: Model Armor Inline Scan (PII & Injection Detection)"]
+            S4["Stage 4: Threat Shield Inline Scan (PII & Injection Detection)"]
             S5["Stage 5: Tool Access Dispatcher"]
             S6["Stage 6: Immutable Audit Log Write (Firestore audit_log)"]
             
@@ -112,7 +112,7 @@ flowchart TD
 
 1. **Identity & Auth Isolation**: Each agent runs as a distinct Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, `agentmesh-compliance@...`, `agentmesh-expense-approval@...`, `agentmesh-hr-leave@...`, `agentmesh-legal-contract@...`).
 2. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline via ADK FunctionTools wrapping GatewayClient calls.
-3. **Model Armor**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
+3. **Threat Shield (Guard Pipeline)**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
 4. **Persisted Workflow Resumption**: Paused workflows store state in Firestore (`workflows` collection), surviving Cloud Run process restarts.
 5. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability. ADK's internal tracer runs on a separate namespace — no conflict with each agent's `telemetry.py` tracer.
 6. **Compliance Policy Bug Fix (Phase 9b)**: `get_policies()` now uses `action="read"` with no docId, triggering the Gateway's collection-stream path and returning real Firestore policy documents for compliance reasoning.

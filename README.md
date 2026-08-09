@@ -31,7 +31,7 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 
 ```text
 agentmesh/
-├── gateway/                # Cloud Run — 6-stage pipeline (Auth, Identity, Policy, Armor, Tool Access, Audit)
+├── gateway/                # Cloud Run — 6-stage pipeline (Auth, Identity, Policy, Threat Shield, Tool Access, Audit)
 ├── agents/
 │   ├── fraud-finance/      # ADK agent — invoice fraud investigation & state resumption
 │   ├── it-security/        # ADK agent — GitHub repo monitoring & incident triage

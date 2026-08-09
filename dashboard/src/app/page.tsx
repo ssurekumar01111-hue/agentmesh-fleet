@@ -1040,7 +1040,7 @@ export default function Dashboard() {
                 {/* 3a. Threats Blocked Tally by Category */}
                 <div className="flat-card">
                   <h2 className="text-sm font-semibold text-[#0f172a] mb-1">
-                    Security threat tally by category (Model Armor & Policy Engine)
+                    Security threat tally by category (Threat Shield & Policy Engine)
                   </h2>
                   <p className="text-xs text-[#64748b] mb-4">
                     Computed live from real `audit_log` armorFlags and policy violations

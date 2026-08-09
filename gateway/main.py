@@ -2,7 +2,7 @@
 """
 AgentMesh Gateway Service — FastAPI App with OpenTelemetry Instrumentation.
 Enforces 6-stage pipeline:
-Authentication -> Identity Check -> Policy Check -> Model Armor -> Tool Access / Forward -> Audit Logging.
+Authentication -> Identity Check -> Policy Check -> Guard Pipeline -> Tool Access / Forward -> Audit Logging.
 Also exposes a dedicated, authenticated Policy Simulation endpoint for zero-trust evaluation without tool execution.
 """
 
@@ -18,7 +18,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from opentelemetry import trace
 
-from armor import ModelArmor
+from armor import GuardPipeline
 from telemetry import init_tracer
 
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "agentmesh-fleet-2026")
@@ -30,7 +30,7 @@ tracer = init_tracer("agentmesh-gateway", app=app)
 
 # Initialize clients
 db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
-armor = ModelArmor(project_id=PROJECT_ID)
+armor = GuardPipeline(project_id=PROJECT_ID)
 
 class GatewayRequest(BaseModel):
     callerServiceAccount: str
@@ -345,9 +345,9 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 )
             pol_span.set_attribute("policyDecision", "allowed")
 
-        # Stage 4: Model Armor (Inbound Prompt / Payload Scan)
-        with tracer.start_as_current_span("Model Armor") as armor_span:
-            print(f"[Gateway] Stage 4: Model Armor Inbound Scan...")
+        # Stage 4: Guard Pipeline / Threat Shield (Inbound Prompt / Payload Scan)
+        with tracer.start_as_current_span("Threat Shield Scan") as armor_span:
+            print(f"[Gateway] Stage 4: Guard Pipeline Inbound Scan...")
             req_str = str(req.payload or "")
             is_blocked, flags, clean_payload = armor.scan_content(req_str)
             armor_flags.extend(flags)
@@ -356,7 +356,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
             if is_blocked:
                 latency = (time.time() - start_time) * 1000
-                reason = f"Model Armor inbound block flags triggered: {flags}"
+                reason = f"Guard Pipeline inbound block flags triggered: {flags}"
                 log_id = write_audit_log(agent_id, None, req.action, req_str, "BLOCKED_BY_ARMOR", "denied", reason, armor_flags, latency)
                 pipe_span.set_attribute("policyDecision", "denied")
                 pipe_span.set_attribute("armorFlags", str(armor_flags))
@@ -401,7 +401,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 else:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported targetResource '{req.targetResource}'")
 
-                # Model Armor Outbound Scan
+                # Guard Pipeline Outbound Scan
                 res_str = str(result)
                 out_blocked, out_flags, clean_result = armor.scan_content(res_str)
                 armor_flags.extend(out_flags)
