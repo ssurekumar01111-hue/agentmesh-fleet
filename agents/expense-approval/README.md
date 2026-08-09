@@ -6,6 +6,19 @@ The **Expense Approval Agent** is an autonomous Finance department reasoning age
 
 It evaluates employee expense reports from Northbridge Retail Co. against the company's internal expense policy, independently computing whether each report should be **APPROVED**, **FLAGGED** for review, or **ESCALATED** for VP-level approval.
 
+## ADK Integration Architecture (Phase 9b)
+The agent is rebuilt using native ADK abstractions, following the same pattern as `agents/fraud-finance`:
+- **`google.adk.agents.LlmAgent`**: Agent identity, `gemini-3.5-flash` model, system instructions, and tool bindings.
+- **`google.adk.tools.FunctionTool`**: Wraps all Gateway calls:
+  - `fetch_expense` — reads expense doc from sandbox_expenses via Gateway
+  - `write_memory` — writes findings to Firestore memory via Gateway
+  - `update_workflow` — updates workflow state in Firestore via Gateway
+- **`google.adk.runners.Runner`**: Multi-turn agent execution loop and tool calling runtime.
+- **`google.adk.sessions.InMemorySessionService`**: ADK session state (no conflict with existing OTel telemetry.py).
+
+## OpenTelemetry Observability
+The agent's `telemetry.py` (`init_tracer`) instruments FastAPI and outbound requests. ADK's internal tracer runs on a separate namespace — no conflict or span duplication. Both export independently to GCP Cloud Trace.
+
 ---
 
 ## Security Architecture & Zero Bypass
