@@ -15,6 +15,12 @@ class GatewayClient:
 
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
+        try:
+            from opentelemetry import propagate
+            propagate.inject(headers)
+        except Exception as e:
+            print(f"[GatewayClient] Note: Could not inject traceparent context: {e}")
+
         if os.getenv("ALLOW_LOCAL_AUTH_EMULATION", "false").lower() == "true":
             headers["x-emulated-sa"] = self.sa_email
         else:

@@ -248,7 +248,10 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
     armor_flags = []
     sa_email = caller_email
 
-    with tracer.start_as_current_span("Gateway Full Pipeline") as pipe_span:
+    from opentelemetry import propagate
+    parent_ctx = propagate.extract(dict(request.headers))
+
+    with tracer.start_as_current_span("Gateway Full Pipeline", context=parent_ctx) as pipe_span:
         pipe_span.set_attribute("callerServiceAccount", sa_email)
         pipe_span.set_attribute("targetResource", req.targetResource)
         pipe_span.set_attribute("action", req.action)
