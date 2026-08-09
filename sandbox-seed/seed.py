@@ -584,9 +584,9 @@ INCIDENTS = [
     }
 ]
 
-# 6. agent_registry (10 entries total: 3 ACTIVE, 7 PENDING)
+# 6. agent_registry (12 entries total: 6 ACTIVE domain agents, 4 PENDING domain agents, 2 PLATFORM infrastructure identities)
 REGISTRY_ENTRIES = [
-    # Active Agent 1
+    # Active Domain Agent 1
     {
         "id": "fraud-finance",
         "name": "Fraud & Finance Investigation Agent",
@@ -594,6 +594,7 @@ REGISTRY_ENTRIES = [
         "owner": "Finance Operations",
         "version": "1.0.0",
         "status": "active",
+        "agentType": "domain",
         "description": "Reviews invoices against vendor historical baselines, flags payment anomalies, and manages approval workflows.",
         "capabilities": ["invoice-review", "vendor-lookup", "anomaly-detection"],
         "allowedTools": ["firestore:sandbox_invoices", "firestore:sandbox_vendors"],
@@ -603,7 +604,7 @@ REGISTRY_ENTRIES = [
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
-    # Active Agent 2
+    # Active Domain Agent 2
     {
         "id": "it-security",
         "name": "IT & Security Monitoring Agent",
@@ -611,6 +612,7 @@ REGISTRY_ENTRIES = [
         "owner": "InfoSec Team",
         "version": "1.0.0",
         "status": "active",
+        "agentType": "domain",
         "description": "Monitors GitHub code repos for unauthorized commits, secret leaks, and security issues.",
         "capabilities": ["repo-monitoring", "github-issue-triage", "secret-scanning"],
         "allowedTools": ["firestore:sandbox_incidents", "github:issues", "secretmanager:github-sandbox-pat"],
@@ -620,7 +622,7 @@ REGISTRY_ENTRIES = [
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
-    # Active Agent 3
+    # Active Domain Agent 3
     {
         "id": "compliance",
         "name": "Cross-Department Policy & Compliance Engine",
@@ -628,6 +630,7 @@ REGISTRY_ENTRIES = [
         "owner": "Governance & Legal",
         "version": "1.0.0",
         "status": "active",
+        "agentType": "domain",
         "description": "Evaluates cross-agent requests against organizational zero-trust data access policies.",
         "capabilities": ["policy-eval", "audit-review", "access-governance"],
         "allowedTools": ["firestore:policies", "firestore:audit_log"],
@@ -637,39 +640,61 @@ REGISTRY_ENTRIES = [
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
-    # Pending Agents (7 Honest Placeholders)
+    # Active Domain Agent 4
     {
         "id": "expense-approval",
         "name": "Expense Report Approver",
         "department": "Finance",
         "owner": "Finance Operations",
-        "version": "0.1.0",
-        "status": "pending",
-        "description": "Automated employee travel and operational expense validation.",
-        "capabilities": ["expense-review", "receipt-ocr"],
-        "allowedTools": [],
-        "allowedCollections": ["sandbox_expenses"],
-        "serviceAccountEmail": "",
+        "version": "1.0.0",
+        "status": "active",
+        "agentType": "domain",
+        "description": "Automated employee travel and operational expense validation against category policy limits.",
+        "capabilities": ["expense-review", "policy-check", "lag-audit"],
+        "allowedTools": ["firestore:sandbox_expenses", "firestore:workflows", "firestore:memory", "firestore:audit_log"],
+        "allowedCollections": ["sandbox_expenses", "workflows", "memory", "audit_log"],
+        "serviceAccountEmail": f"agentmesh-expense-approval@{PROJECT_ID}.iam.gserviceaccount.com",
         "riskLevel": "low",
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
+    # Active Domain Agent 5
     {
         "id": "leave-assistant",
         "name": "Employee Leave & Vacation Assistant",
         "department": "HR",
         "owner": "HR Operations",
-        "version": "0.1.0",
-        "status": "pending",
-        "description": "Processes PTO requests and checks departmental staffing coverage.",
-        "capabilities": ["pto-booking", "calendar-sync"],
-        "allowedTools": [],
-        "allowedCollections": ["sandbox_employees"],
-        "serviceAccountEmail": "",
+        "version": "1.0.0",
+        "status": "active",
+        "agentType": "domain",
+        "description": "Processes PTO requests and checks departmental staffing coverage and policy compliance.",
+        "capabilities": ["pto-booking", "policy-check", "pto-balance-eval"],
+        "allowedTools": ["firestore:sandbox_leave_requests", "firestore:sandbox_employees", "firestore:workflows", "firestore:memory", "firestore:audit_log"],
+        "allowedCollections": ["sandbox_leave_requests", "sandbox_employees", "workflows", "memory", "audit_log"],
+        "serviceAccountEmail": f"agentmesh-hr-leave@{PROJECT_ID}.iam.gserviceaccount.com",
         "riskLevel": "low",
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
+    # Active Domain Agent 6
+    {
+        "id": "contract-review",
+        "name": "Legal Contract & NDA Reviewer",
+        "department": "Legal",
+        "owner": "Legal Department",
+        "version": "1.0.0",
+        "status": "active",
+        "agentType": "domain",
+        "description": "Checks vendor NDAs, MSAs, and sales contracts for standard clause compliance.",
+        "capabilities": ["contract-parse", "clause-validation", "legal-policy-review"],
+        "allowedTools": ["firestore:sandbox_contracts", "firestore:workflows", "firestore:memory", "firestore:audit_log"],
+        "allowedCollections": ["sandbox_contracts", "workflows", "memory", "audit_log"],
+        "serviceAccountEmail": f"agentmesh-legal-contract@{PROJECT_ID}.iam.gserviceaccount.com",
+        "riskLevel": "medium",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    # Pending Domain Candidate Agents (4 Remaining)
     {
         "id": "recruitment-screener",
         "name": "Talent Acquisition Resume Screener",
@@ -677,6 +702,7 @@ REGISTRY_ENTRIES = [
         "owner": "Talent Acquisition",
         "version": "0.1.0",
         "status": "pending",
+        "agentType": "domain",
         "description": "Initial resume parsing and interview scheduling helper.",
         "capabilities": ["resume-parse", "candidate-match"],
         "allowedTools": [],
@@ -687,28 +713,13 @@ REGISTRY_ENTRIES = [
         "updatedAt": datetime.now(timezone.utc)
     },
     {
-        "id": "contract-review",
-        "name": "Legal Contract & NDA Reviewer",
-        "department": "Legal",
-        "owner": "Legal Department",
-        "version": "0.1.0",
-        "status": "pending",
-        "description": "Checks vendor NDAs and sales contracts for standard clause compliance.",
-        "capabilities": ["contract-parse", "clause-validation"],
-        "allowedTools": [],
-        "allowedCollections": ["sandbox_contracts"],
-        "serviceAccountEmail": "",
-        "riskLevel": "medium",
-        "createdAt": datetime.now(timezone.utc),
-        "updatedAt": datetime.now(timezone.utc)
-    },
-    {
         "id": "crm-assistant",
         "name": "Sales Opportunity & Lead Assistant",
         "department": "Sales",
         "owner": "Sales Operations",
         "version": "0.1.0",
         "status": "pending",
+        "agentType": "domain",
         "description": "Enriches inbound enterprise leads and updates sales pipeline metrics.",
         "capabilities": ["lead-enrichment", "pipeline-update"],
         "allowedTools": [],
@@ -725,6 +736,8 @@ REGISTRY_ENTRIES = [
         "owner": "Customer Success",
         "version": "0.1.0",
         "status": "pending",
+        "agentType": "domain",
+        "agentType": "domain",
         "description": "Answers common order tracking inquiries and initiates replacement requests.",
         "capabilities": ["order-tracking", "ticket-resolution"],
         "allowedTools": [],
@@ -741,12 +754,48 @@ REGISTRY_ENTRIES = [
         "owner": "Logistics",
         "version": "0.1.0",
         "status": "pending",
+        "agentType": "domain",
         "description": "Monitors stock levels across regional retail hubs and triggers reorders.",
         "capabilities": ["stock-check", "reorder-trigger"],
         "allowedTools": [],
         "allowedCollections": ["sandbox_inventory"],
         "serviceAccountEmail": "",
         "riskLevel": "medium",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    # Platform Infrastructure Identities (2 Separate Entries)
+    {
+        "id": "gateway",
+        "name": "Gateway Proxy",
+        "department": "Infrastructure",
+        "owner": "Platform Engineering",
+        "version": "1.0.0",
+        "status": "active",
+        "agentType": "platform",
+        "description": "Central zero-trust proxy enforcing authentication, identity, policy, armor, tool access, and audit logging.",
+        "capabilities": ["gateway-routing", "policy-enforcement", "audit-logging"],
+        "allowedTools": ["*"],
+        "allowedCollections": ["*"],
+        "serviceAccountEmail": f"agentmesh-gateway@{PROJECT_ID}.iam.gserviceaccount.com",
+        "riskLevel": "high",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "dashboard",
+        "name": "Dashboard UI",
+        "department": "Operations",
+        "owner": "Platform Engineering",
+        "version": "1.0.0",
+        "status": "active",
+        "agentType": "platform",
+        "description": "Control plane dashboard UI for monitoring fleet health, human-in-the-loop workflows, policies, and observability.",
+        "capabilities": ["dashboard-ui", "workflow-management"],
+        "allowedTools": ["firestore:*"],
+        "allowedCollections": ["*"],
+        "serviceAccountEmail": f"agentmesh-dashboard@{PROJECT_ID}.iam.gserviceaccount.com",
+        "riskLevel": "low",
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     }
