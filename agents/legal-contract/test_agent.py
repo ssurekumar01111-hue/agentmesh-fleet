@@ -28,12 +28,29 @@ VIOLATING_CONTRACT_ID = "ctr-2026-005"
 NORMAL_CONTRACT_ID = "ctr-2026-001"
 
 
+def get_auth_headers(url: str) -> dict:
+    headers = {"Content-Type": "application/json"}
+    token = os.getenv("TOKEN")
+    if not token:
+        try:
+            import subprocess
+            cmd = r'& "C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" auth print-identity-token'
+            res = subprocess.run(["powershell", "-Command", cmd], capture_output=True, text=True, timeout=10)
+            token = res.stdout.strip()
+        except Exception:
+            token = None
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def review_contract(base_url: str, contract_id: str) -> dict:
     url = f"{base_url.rstrip('/')}/review"
     payload = {"contractId": contract_id}
+    headers = get_auth_headers(base_url)
     print(f"\n[*] POST {url}")
     print(f"    Payload: {json.dumps(payload)}")
-    res = requests.post(url, json=payload, timeout=60)
+    res = requests.post(url, json=payload, headers=headers, timeout=60)
     print(f"    HTTP Status: {res.status_code}")
     if res.status_code != 200:
         print(f"    ERROR body: {res.text[:500]}")
@@ -41,6 +58,7 @@ def review_contract(base_url: str, contract_id: str) -> dict:
     data = res.json()
     print(f"    Response:\n{json.dumps(data, indent=2)}")
     return data
+
 
 
 def assert_field(result: dict, field: str, expected_values, label: str):
@@ -128,7 +146,7 @@ def main():
     # ------------------------------------------------------------------
     print("\n\n" + "=" * 70)
     all_pass = all([p1, p2, p3, p4, n1, n2, n3, n4])
-    print(f"OVERALL: {'ALL TESTS PASSED ✓' if all_pass else 'SOME TESTS FAILED ✗'}")
+    print(f"OVERALL: {'ALL TESTS PASSED [PASS]' if all_pass else 'SOME TESTS FAILED [FAIL]'}")
     print("=" * 70)
     sys.exit(0 if all_pass else 1)
 

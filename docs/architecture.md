@@ -30,20 +30,28 @@ flowchart TD
     end
 
     subgraph Agents["Domain Agent Fleet (Google ADK v2.6+ & Gemini 3.5 Flash on Cloud Run)"]
-        AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)\n[google-adk LlmAgent & FunctionTools]"]
-        AG_IT["IT & Security Agent\n(agentmesh-it-security)"]
-        AG_COMP["Compliance Agent\n(agentmesh-compliance)"]
+        AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)\n[LlmAgent + FunctionTools: fetch_invoice,\nfetch_vendor_history, write_memory,\nupdate_workflow]"]
+        AG_IT["IT & Security Agent\n(agentmesh-it-security)\n[LlmAgent + FunctionTools: list_issues,\nlist_commits, create_issue, write_memory,\nupdate_incident, update_workflow]"]
+        AG_COMP["Compliance Agent\n(agentmesh-compliance)\n[LlmAgent + FunctionTools: fetch_workflow,\nfetch_memory, fetch_policies, write_memory,\nread_hr_employees]\n[Phase 9b: get_policies bug fix — action=read]"]
+        AG_EXPENSE["Expense Approval Agent\n(agentmesh-expense-approval)\n[LlmAgent + FunctionTools: fetch_expense,\nwrite_memory, update_workflow]"]
+        AG_LEAVE["HR Leave Agent\n(agentmesh-hr-leave)\n[LlmAgent + FunctionTools: fetch_leave_request,\nfetch_employee, write_memory, update_workflow]"]
+        AG_LEGAL["Legal Contract Agent\n(agentmesh-legal-contract)\n[LlmAgent + FunctionTools: fetch_contract,\nwrite_memory, update_workflow]"]
 
         GEMINI["Google Vertex AI\n(gemini-3.5-flash)"]
 
-        
         AG_FRAUD -->|Gemini Reasoning| GEMINI
         AG_IT -->|Gemini Reasoning| GEMINI
         AG_COMP -->|Gemini Reasoning| GEMINI
+        AG_EXPENSE -->|Gemini Reasoning| GEMINI
+        AG_LEAVE -->|Gemini Reasoning| GEMINI
+        AG_LEGAL -->|Gemini Reasoning| GEMINI
 
         AG_FRAUD -->|OIDC Auth + Gateway API| GW_ENTRY
         AG_IT -->|OIDC Auth + Gateway API| GW_ENTRY
         AG_COMP -->|OIDC Auth + Gateway API| GW_ENTRY
+        AG_EXPENSE -->|OIDC Auth + Gateway API| GW_ENTRY
+        AG_LEAVE -->|OIDC Auth + Gateway API| GW_ENTRY
+        AG_LEGAL -->|OIDC Auth + Gateway API| GW_ENTRY
     end
 
 
@@ -79,15 +87,32 @@ flowchart TD
 | **Fraud & Finance Agent** | `agentmesh-fraud-finance` | https://agentmesh-fraud-finance-138003672216.asia-south1.run.app |
 | **IT & Security Agent** | `agentmesh-it-security` | https://agentmesh-it-security-138003672216.asia-south1.run.app |
 | **Compliance Agent** | `agentmesh-compliance` | https://agentmesh-compliance-138003672216.asia-south1.run.app |
+| **Expense Approval Agent** | `agentmesh-expense-approval` | https://agentmesh-expense-approval-138003672216.asia-south1.run.app |
+| **HR Leave Agent** | `agentmesh-hr-leave` | https://agentmesh-hr-leave-138003672216.asia-south1.run.app |
+| **Legal Contract Agent** | `agentmesh-legal-contract` | https://agentmesh-legal-contract-138003672216.asia-south1.run.app |
 | **GitHub Sandbox Repository** | `Northbridge-Retail-Co.` | https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co. |
 | **GCP Cloud Trace Console** | `agentmesh-fleet-2026` | https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026 |
 
 ---
 
+## ADK Adoption Status (All 6 Agents — Phase 9a + 9b Complete)
+
+| Agent | ADK LlmAgent | FunctionTools | Runner | InMemorySessionService | Phase |
+|---|---|---|---|---|---|
+| fraud-finance | ✅ | fetch_invoice, fetch_vendor_history, write_memory, update_workflow | ✅ | ✅ | 9a |
+| it-security | ✅ | list_issues, list_commits, create_issue, write_memory, update_incident, update_workflow | ✅ | ✅ | 9b |
+| compliance | ✅ | fetch_workflow, fetch_memory, fetch_policies, write_memory, read_hr_employees | ✅ | ✅ | 9b |
+| expense-approval | ✅ | fetch_expense, write_memory, update_workflow | ✅ | ✅ | 9b |
+| hr-leave | ✅ | fetch_leave_request, fetch_employee, write_memory, update_workflow | ✅ | ✅ | 9b |
+| legal-contract | ✅ | fetch_contract, write_memory, update_workflow | ✅ | ✅ | 9b |
+
+---
+
 ## Real Execution Flow & Zero-Trust Guarantees
 
-1. **Identity & Auth Isolation**: Each agent runs as a distinct Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, `agentmesh-compliance@...`).
-2. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline.
+1. **Identity & Auth Isolation**: Each agent runs as a distinct Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, `agentmesh-compliance@...`, `agentmesh-expense-approval@...`, `agentmesh-hr-leave@...`, `agentmesh-legal-contract@...`).
+2. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline via ADK FunctionTools wrapping GatewayClient calls.
 3. **Model Armor**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
 4. **Persisted Workflow Resumption**: Paused workflows store state in Firestore (`workflows` collection), surviving Cloud Run process restarts.
-5. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability.
+5. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability. ADK's internal tracer runs on a separate namespace — no conflict with each agent's `telemetry.py` tracer.
+6. **Compliance Policy Bug Fix (Phase 9b)**: `get_policies()` now uses `action="read"` with no docId, triggering the Gateway's collection-stream path and returning real Firestore policy documents for compliance reasoning.
