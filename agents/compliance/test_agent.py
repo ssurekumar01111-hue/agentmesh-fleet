@@ -1,75 +1,155 @@
 #!/usr/bin/env python3
 """
-Test script for Compliance Agent.
+Integration test for Compliance Agent against the live deployed Cloud Run service.
+
 Tests:
  1. Responsibility 1: Reviews paused workflow 'wf-inv-2026-007', queries policies via Gateway, generates compliance assessment, and writes to memory doc 'compliance-case-inv-2026-007'.
  2. Responsibility 2: Executes unauthorized read of 'sandbox_employees' via Gateway using 'agentmesh-compliance' identity. Asserts HTTP 403 / failure and returns auditLogId.
+
+Usage:
+    python test_agent.py [--service-url URL]
+
+Defaults to the live Cloud Run URL. Set COMPLIANCE_URL env var to override.
 """
 
+import argparse
+import json
 import os
 import sys
-from agent import ComplianceAgent
+
+import requests
 from google.cloud import firestore
+
+DEFAULT_URL = os.getenv(
+    "COMPLIANCE_URL",
+    "https://agentmesh-compliance-138003672216.asia-south1.run.app",
+)
 
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "agentmesh-fleet-2026")
 DATABASE_ID = os.getenv("FIRESTORE_DATABASE", "(default)")
 
 db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
 
-def test_responsibility_1_workflow_review():
-    print("\n" + "=" * 70)
-    print("TEST 4c - RESPONSIBILITY 1: WORKFLOW COMPLIANCE REVIEW TEST")
+
+def get_auth_headers(url: str) -> dict:
+    headers = {"Content-Type": "application/json"}
+    token = os.getenv("TOKEN")
+    if not token:
+        try:
+            import subprocess
+            gcloud_path = r"C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
+            res = subprocess.run([gcloud_path, "auth", "print-identity-token"], capture_output=True, text=True, timeout=10)
+            token = res.stdout.strip()
+        except Exception:
+            token = None
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def review_workflow(base_url: str, workflow_id: str = "wf-inv-2026-007") -> dict:
+    url = f"{base_url.rstrip('/')}/review"
+    payload = {"workflowId": workflow_id}
+    headers = get_auth_headers(base_url)
+    print(f"\n[*] POST {url}")
+    print(f"    Payload: {json.dumps(payload)}")
+    res = requests.post(url, json=payload, headers=headers, timeout=60)
+    print(f"    HTTP Status: {res.status_code}")
+    if res.status_code != 200:
+        print(f"    ERROR body: {res.text[:500]}")
+        return {}
+    data = res.json()
+    print(f"    Response:\n{json.dumps(data, indent=2)}")
+    return data
+
+
+def test_denied_access(base_url: str) -> dict:
+    url = f"{base_url.rstrip('/')}/test-denied"
+    headers = get_auth_headers(base_url)
+    print(f"\n[*] POST {url}")
+    res = requests.post(url, json={}, headers=headers, timeout=60)
+    print(f"    HTTP Status: {res.status_code}")
+    if res.status_code != 200:
+        print(f"    ERROR body: {res.text[:500]}")
+        return {}
+    data = res.json()
+    print(f"    Response:\n{json.dumps(data, indent=2)}")
+    return data
+
+
+def assert_field(result: dict, field: str, expected_values, label: str):
+    actual = result.get(field)
+    if isinstance(expected_values, (list, tuple, set)):
+        ok = actual in expected_values
+    else:
+        ok = actual == expected_values
+    status = "PASS" if ok else "FAIL"
+    print(f"  [{status}] {label}: got '{actual}' (expected {expected_values})")
+    return ok
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--service-url", default=DEFAULT_URL, help="Base URL of compliance service")
+    args = parser.parse_args()
+    base_url = args.service_url
+
+    print("=" * 70)
+    print("AgentMesh Compliance Agent — Live Cloud Run Integration Test")
+    print(f"Service URL: {base_url}")
     print("=" * 70)
 
-    agent = ComplianceAgent()
-    res = agent.review_workflow_compliance("wf-inv-2026-007")
+    # ------------------------------------------------------------------
+    # Test 1: Responsibility 1 — Workflow Compliance Review
+    # ------------------------------------------------------------------
+    print("\n--- TEST 1: Workflow Compliance Review (wf-inv-2026-007) ---")
+    resp_review = review_workflow(base_url, "wf-inv-2026-007")
+    data_review = resp_review.get("data", {})
 
-    print("\n--- COMPLIANCE AGENT REASONING OUTPUT ---")
-    print(f"Workflow ID        : {res['workflowId']}")
-    print(f"Compliance Case ID : {res['complianceCaseId']}")
-    print(f"Assessment Decision: {res['assessmentDecision']}")
-    print(f"Summary            : {res['summary']}")
-    print("Findings           :")
-    for f in res['findings']:
-        print(f"  • {f}")
+    print("\nAssertions:")
+    p1 = assert_field(
+        data_review,
+        "workflowId",
+        "wf-inv-2026-007",
+        "workflowId matches",
+    )
+    p2 = assert_field(
+        data_review,
+        "assessmentDecision",
+        {"ESCALATE", "REJECT", "APPROVE"},
+        "assessmentDecision is ESCALATE/REJECT/APPROVE",
+    )
+    p3 = assert_field(
+        data_review,
+        "complianceCaseId",
+        "compliance-case-inv-2026-007",
+        "complianceCaseId matches",
+    )
 
-    assert res['assessmentDecision'] in ("ESCALATE", "REJECT", "APPROVE"), f"Invalid decision {res['assessmentDecision']}"
-    assert res['complianceCaseId'] == "compliance-case-inv-2026-007", f"Unexpected case ID {res['complianceCaseId']}"
-
-    # Readback from Firestore memory collection
     mem_doc = db.collection("memory").document("compliance-case-inv-2026-007").get()
-    assert mem_doc.exists, "Compliance memory doc 'compliance-case-inv-2026-007' missing in Firestore!"
+    p4 = mem_doc.exists
+    print(f"  [{'PASS' if p4 else 'FAIL'}] Firestore Memory document 'compliance-case-inv-2026-007' exists")
+    if mem_doc.exists:
+        mem_data = mem_doc.to_dict()
+        print("\n--- REAL FIRESTORE MEMORY DOCUMENT PRODUCED ---")
+        print(f"Memory Doc ID       : compliance-case-inv-2026-007")
+        print(f"Assessment Decision : {mem_data.get('assessmentDecision')}")
+        print(f"Summary             : {mem_data.get('summary')}")
 
-    mem_data = mem_doc.to_dict()
-    print("\n--- REAL FIRESTORE MEMORY DOCUMENT PRODUCED ---")
-    print(f"Memory Doc ID: compliance-case-inv-2026-007")
-    print(f"Assessment Decision: {mem_data.get('assessmentDecision')}")
-    print(f"Summary            : {mem_data.get('summary')}")
-    print(f"Findings           : {mem_data.get('findings')}")
-    print(f"Updated At         : {mem_data.get('updatedAt')}")
+    # ------------------------------------------------------------------
+    # Test 2: Responsibility 2 — Live Zero-Trust Denial Test
+    # ------------------------------------------------------------------
+    print("\n\n--- TEST 2: Live Zero-Trust Denial Test ---")
+    resp_denied = test_denied_access(base_url)
+    gw_res = resp_denied.get("gatewayResponse", {})
 
-    return res
+    print("\nAssertions:")
+    d1 = gw_res.get("success") is False
+    print(f"  [{'PASS' if d1 else 'FAIL'}] Gateway returned success=False (denied): got {gw_res.get('success')}")
+    d2 = gw_res.get("status_code") in (403, 400)
+    print(f"  [{'PASS' if d2 else 'FAIL'}] Gateway status code is 403 or 400: got {gw_res.get('status_code')}")
 
-def test_responsibility_2_denied_access():
-    print("\n" + "=" * 70)
-    print("TEST 4c - RESPONSIBILITY 2: LIVE ZERO-TRUST DENIAL TEST")
-    print("=" * 70)
-
-    agent = ComplianceAgent()
-    gateway_res = agent.test_hr_data_access()
-
-    print("\n--- GATEWAY RESPONSE SUMMARY ---")
-    print(f"Success Flag : {gateway_res.get('success')}")
-    print(f"Status Code  : {gateway_res.get('status_code')}")
-    print(f"Error Detail : {gateway_res.get('error')}")
-    print(f"Audit Log ID : {gateway_res.get('auditLogId')}")
-
-    # Assert genuine rejection
-    assert gateway_res.get('success') is False, "EXPECTED DENIAL, but request succeeded!"
-    assert gateway_res.get('status_code') in (403, 400), f"Expected HTTP 403 or 400, got {gateway_res.get('status_code')}"
-
-    # Audit log verification if auditLogId was returned
-    audit_log_id = gateway_res.get('auditLogId')
+    audit_log_id = gw_res.get("auditLogId")
     if audit_log_id:
         audit_doc = db.collection("audit_log").document(audit_log_id).get()
         if audit_doc.exists:
@@ -80,15 +160,15 @@ def test_responsibility_2_denied_access():
             print(f"Policy Decision : {ad_data.get('policyDecision')}")
             print(f"Policy Reason   : {ad_data.get('policyReason')}")
 
-    return gateway_res
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    print("\n\n" + "=" * 70)
+    all_pass = all([p1, p2, p3, p4, d1, d2])
+    print(f"OVERALL: {'ALL TESTS PASSED [PASS]' if all_pass else 'SOME TESTS FAILED [FAIL]'}")
+    print("=" * 70)
+    sys.exit(0 if all_pass else 1)
 
-def main():
-    print("[*] Running Compliance Agent Integration Tests...")
-    test_responsibility_1_workflow_review()
-    test_responsibility_2_denied_access()
-    print("\n" + "=" * 70)
-    print("ALL COMPLIANCE AGENT TESTS PASSED PERFECTLY!")
-    print("=" * 70 + "\n")
 
 if __name__ == "__main__":
     main()
