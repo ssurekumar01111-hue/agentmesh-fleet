@@ -808,8 +808,20 @@ REGISTRY_ENTRIES = [
         "agentType": "platform",
         "description": "Control plane dashboard UI for monitoring fleet health, human-in-the-loop workflows, policies, and observability.",
         "capabilities": ["dashboard-ui", "workflow-management"],
-        "allowedTools": ["firestore:*"],
-        "allowedCollections": ["*"],
+        "allowedTools": [
+            "firestore:agent_registry",
+            "firestore:workflows",
+            "firestore:memory",
+            "firestore:policies",
+            "firestore:audit_log"
+        ],
+        "allowedCollections": [
+            "agent_registry",
+            "workflows",
+            "memory",
+            "policies",
+            "audit_log"
+        ],
         "serviceAccountEmail": f"agentmesh-dashboard@{PROJECT_ID}.iam.gserviceaccount.com",
         "riskLevel": "low",
         "createdAt": datetime.now(timezone.utc),
