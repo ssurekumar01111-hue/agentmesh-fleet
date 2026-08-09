@@ -42,6 +42,12 @@ export default function Dashboard() {
   const [pgRunning, setPgRunning] = useState(false);
   const [pgResult, setPgResult] = useState<any | null>(null);
 
+  // Agent Trigger State
+  const [triggerAgentId, setTriggerAgentId] = useState<string>("fraud-finance");
+  const [triggerTargetRecord, setTriggerTargetRecord] = useState<string>("inv-2026-009");
+  const [triggerLoading, setTriggerLoading] = useState(false);
+  const [triggerResult, setTriggerResult] = useState<any | null>(null);
+
   const fetchGatewayData = async (
     targetResource: string,
     collectionName: string,
@@ -225,6 +231,29 @@ export default function Dashboard() {
     // Refresh audit logs to reflect new evaluation
     const logRes = await fetchGatewayData("firestore:audit_log", "audit_log", "read");
     if (logRes && Array.isArray(logRes.data)) setAuditLogs(logRes.data);
+  };
+
+  // Run Real Agent Investigation Trigger
+  const runAgentTrigger = async () => {
+    setTriggerLoading(true);
+    setTriggerResult(null);
+    try {
+      const res = await fetch("/api/trigger-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: triggerAgentId,
+          targetRecord: triggerTargetRecord,
+        }),
+      });
+      const data = await res.json();
+      setTriggerResult(data);
+      await loadData();
+    } catch (err: any) {
+      console.error("Trigger agent error:", err);
+      setTriggerResult({ status: "error", detail: err.message });
+    }
+    setTriggerLoading(false);
   };
 
   // Helper for workflow status stepper
@@ -683,6 +712,70 @@ export default function Dashboard() {
             {/* LIVE WORKFLOWS TAB & REAL APPROVAL UI */}
             {activeTab === "workflows" && (
               <div className="space-y-6">
+                {/* 2a. Run Investigation / Agent Trigger Panel */}
+                <div className="flat-card bg-slate-50/50 border border-slate-200">
+                  <h2 className="text-sm font-semibold text-[#0f172a] mb-1 flex items-center gap-2">
+                    <IconPlayerPlay size={16} className="text-[#2563eb]" />
+                    Run investigation & trigger live agent workflow
+                  </h2>
+                  <p className="text-xs text-[#64748b] mb-4">
+                    Directly dispatch real agent work to Cloud Run endpoints (creates real Firestore workflow & memory state without curl)
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div>
+                      <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wider block mb-1">
+                        Select Target Agent
+                      </label>
+                      <select
+                        value={triggerAgentId}
+                        onChange={(e) => setTriggerAgentId(e.target.value)}
+                        className="w-full bg-white border border-[#cbd5e1] rounded-lg text-xs px-3 py-2 text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                      >
+                        <option value="fraud-finance">Fraud & Finance Agent (fraud-finance)</option>
+                        <option value="it-security">IT & Security Agent (it-security)</option>
+                        <option value="compliance">Compliance Agent (compliance)</option>
+                        <option value="expense-approval">Expense Approval Agent (expense-approval)</option>
+                        <option value="hr-leave">HR Leave Agent (hr-leave)</option>
+                        <option value="legal-contract">Legal Contract Agent (legal-contract)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wider block mb-1">
+                        Target Record / Entity ID
+                      </label>
+                      <input
+                        type="text"
+                        value={triggerTargetRecord}
+                        onChange={(e) => setTriggerTargetRecord(e.target.value)}
+                        placeholder="e.g. inv-2026-009 or ssurekumar01111-hue/Northbridge-Retail-Co."
+                        className="w-full bg-white border border-[#cbd5e1] rounded-lg text-xs px-3 py-2 text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#2563eb] font-mono"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        disabled={triggerLoading}
+                        onClick={runAgentTrigger}
+                        className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-white bg-[#2563eb] hover:bg-blue-700 px-4 py-2 rounded-lg transition disabled:opacity-50 shadow-sm"
+                      >
+                        <IconPlayerPlay size={14} />
+                        {triggerLoading ? "Executing on Cloud Run..." : "Run investigation"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {triggerResult && (
+                    <div className="mt-3 p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto border border-slate-800">
+                      <div className="text-[11px] font-bold text-emerald-400 mb-1">
+                        ✓ Cloud Run Response (Real Execution Output):
+                      </div>
+                      <pre>{JSON.stringify(triggerResult, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flat-card">
                   <h2 className="text-sm font-semibold text-[#0f172a] mb-1">
                     Live workflows & execution status
