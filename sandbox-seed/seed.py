@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 """
-Seed script for AgentMesh — Northbridge Retail Co. sandbox company & Fleet Registry.
-Writes real documents to Firestore database (agentmesh-fleet-2026).
+Northbridge Retail Co. Sandbox Seeding Script — AgentMesh Platform
+
+PURPOSE & ARCHITECTURAL SPLIT:
+=============================================================================
+1. Sandbox Domain Data Collections:
+   (sandbox_invoices, sandbox_vendors, sandbox_expenses, sandbox_leave_requests,
+    sandbox_contracts, sandbox_employees, sandbox_incidents)
+   - Unconditionally reset & overwritten on every run to restore a clean, predictable,
+     repeatable baseline state for automated testing and live demonstrations.
+
+2. Agent Registry Collection (agent_registry):
+   - Non-destructive upsert policy. Active agent manifests (status == 'active',
+     serviceAccountEmail, allowedCollections, allowedTools) represent live deployed
+     Cloud Run identities and access permissions.
+   - Re-seeding sandbox data will NEVER silently revert an active agent's status
+     to 'pending' or wipe out its serviceAccountEmail, ensuring platform governance
+     persistence across sandbox resets.
+=============================================================================
 """
 
 import os
@@ -843,13 +859,57 @@ POLICIES = [
 # -----------------------------------------------------------------------------
 
 def seed_collection(db, collection_name: str, documents: list):
+    """
+    Seeds documents into a Firestore collection.
+
+    ARCHITECTURAL BEHAVIOR SPLIT:
+    - Domain data collections are overwritten unconditionally.
+    - 'agent_registry' uses non-destructive UPSERT: preserves active status,
+      serviceAccountEmail, allowedCollections, and allowedTools if already active in Firestore.
+    """
     print(f"[*] Seeding collection '{collection_name}' with {len(documents)} documents...")
     batch = db.batch()
-    for doc in documents:
-        doc_id = doc["id"]
-        doc_data = {k: v for k, v in doc.items() if k != "id"}
-        ref = db.collection(collection_name).document(doc_id)
-        batch.set(ref, doc_data)
+
+    if collection_name == "agent_registry":
+        for doc in documents:
+            doc_id = doc["id"]
+            doc_data = {k: v for k, v in doc.items() if k != "id"}
+            ref = db.collection("agent_registry").document(doc_id)
+            existing_snap = ref.get()
+
+            if existing_snap.exists:
+                existing_data = existing_snap.to_dict()
+                if existing_data.get("status") == "active":
+                    # Non-destructive merge: preserve live active agent credentials and permissions
+                    preserved_fields = {
+                        "status": "active",
+                        "serviceAccountEmail": existing_data.get(
+                            "serviceAccountEmail", doc_data.get("serviceAccountEmail", "")
+                        ),
+                        "allowedCollections": existing_data.get(
+                            "allowedCollections", doc_data.get("allowedCollections", [])
+                        ),
+                        "allowedTools": existing_data.get(
+                            "allowedTools", doc_data.get("allowedTools", [])
+                        ),
+                    }
+                    merged_data = {
+                        **doc_data,
+                        **preserved_fields,
+                        "updatedAt": datetime.now(timezone.utc),
+                    }
+                    batch.set(ref, merged_data, merge=True)
+                else:
+                    batch.set(ref, doc_data)
+            else:
+                batch.set(ref, doc_data)
+    else:
+        for doc in documents:
+            doc_id = doc["id"]
+            doc_data = {k: v for k, v in doc.items() if k != "id"}
+            ref = db.collection(collection_name).document(doc_id)
+            batch.set(ref, doc_data)
+
     batch.commit()
     print(f"[+] Successfully seeded '{collection_name}'.")
 
