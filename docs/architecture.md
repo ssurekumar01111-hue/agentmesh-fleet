@@ -29,8 +29,8 @@ flowchart TD
         GW_SIM --> S1
     end
 
-    subgraph Agents["Domain Agent Fleet (Google ADK & Gemini 3.5 Flash on Cloud Run)"]
-        AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)"]
+    subgraph Agents["Domain Agent Fleet (Google ADK v2.6+ & Gemini 3.5 Flash on Cloud Run)"]
+        AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)\n[google-adk LlmAgent & FunctionTools]"]
         AG_IT["IT & Security Agent\n(agentmesh-it-security)"]
         AG_COMP["Compliance Agent\n(agentmesh-compliance)"]
 
@@ -45,6 +45,7 @@ flowchart TD
         AG_IT -->|OIDC Auth + Gateway API| GW_ENTRY
         AG_COMP -->|OIDC Auth + Gateway API| GW_ENTRY
     end
+
 
     subgraph External["External Integrations"]
         GITHUB["GitHub Sandbox Repo\n(ssurekumar01111-hue/Northbridge-Retail-Co.)"]

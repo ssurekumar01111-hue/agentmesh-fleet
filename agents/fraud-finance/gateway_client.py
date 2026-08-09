@@ -25,8 +25,10 @@ class GatewayClient:
                 token = google.oauth2.id_token.fetch_id_token(auth_req, self.gateway_url)
                 headers["Authorization"] = f"Bearer {token}"
             except Exception as e:
-                print(f"[GatewayClient] Note: Could not fetch OIDC ID token ({e})")
+                print(f"[GatewayClient] Note: Could not fetch OIDC ID token ({e}). Using x-emulated-sa fallback.")
+                headers["x-emulated-sa"] = self.sa_email
         return headers
+
 
 
     def call_gateway(self, target_resource: str, collection_name: str, action: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
