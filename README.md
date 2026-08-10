@@ -80,11 +80,24 @@ gcloud run deploy agentmesh-expense-approval --source=agents/expense-approval --
 gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1 --service-account=agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com
 ```
 
-### 4. Running End-to-End Test Suite
-Run the comprehensive multi-agent workflow test suite locally or against deployed Cloud Run services:
+### 4. Running the Test Suites
+Each agent has its own integration test suite that verifies the full async 202/queued → Firestore polling → terminal state pipeline against the live deployed Cloud Run services:
+
 ```bash
-python test_e2e_workflow.py
+# Per-agent test suites (async 202/poll pattern, all verified against live Cloud Run)
+python agents/fraud-finance/test_agent.py
+python agents/it-security/test_agent.py
+python agents/compliance/test_agent.py
+python agents/expense-approval/test_agent.py
+python agents/hr-leave/test_agent.py
+python agents/legal-contract/test_agent.py
+
+# Gateway-level zero-trust and routing verification
+python gateway/test_gateway.py
 ```
+
+Each suite posts a trigger to the agent's Cloud Run endpoint (expects HTTP 202 + `{"status":"queued","workflowId":...}`), polls Firestore every 2 seconds until a terminal state (`waiting_approval`, `completed`, or `failed`) is reached, and asserts on real workflow document state.
+
 
 ---
 
