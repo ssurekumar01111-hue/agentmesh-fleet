@@ -58,7 +58,7 @@ def trigger_review(base_url: str, workflow_id: str) -> requests.Response:
     headers = get_auth_headers(base_url)
     print(f"\n[*] POST {url}")
     print(f"    Payload: {json.dumps(payload)}")
-    res = requests.post(url, json=payload, headers=headers, timeout=30)
+    res = requests.post(url, json=payload, headers=headers, timeout=120)
     print(f"    HTTP Status: {res.status_code}")
     print(f"    Response: {res.text[:300]}")
     return res

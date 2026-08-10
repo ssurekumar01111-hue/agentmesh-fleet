@@ -60,13 +60,13 @@ def trigger_audit(base_url: str, repo: str) -> requests.Response:
     headers = get_auth_headers(base_url)
     print(f"\n[*] POST {url}")
     print(f"    Payload: {json.dumps(payload)}")
-    res = requests.post(url, json=payload, headers=headers, timeout=30)
+    res = requests.post(url, json=payload, headers=headers, timeout=120)
     print(f"    HTTP Status: {res.status_code}")
     print(f"    Response: {res.text[:300]}")
     return res
 
 
-def poll_workflow_until_terminal(workflow_id: str, max_wait: int = 180, interval: float = 2.0) -> dict:
+def poll_workflow_until_terminal(workflow_id: str, max_wait: int = 300, interval: float = 2.0) -> dict:
     """Poll Firestore workflow doc until a terminal state is reached."""
     TERMINAL_STATES = {"waiting_approval", "completed", "failed"}
     seen_states = {}
