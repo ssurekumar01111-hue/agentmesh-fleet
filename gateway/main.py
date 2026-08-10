@@ -403,8 +403,54 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                                 result.append(item)
 
                     elif req.action == "write":
-                        doc_id = req.payload.get("docId")
-                        data = req.payload.get("data", {})
+                        doc_id = req.payload.get("docId") if req.payload else None
+                        data = req.payload.get("data", {}) if req.payload else {}
+
+                        # Stage 3.1: Workflow Ownership Enforcement Check
+                        if req.collectionName == "workflows" and doc_id:
+                            existing_wf_doc = db.collection("workflows").document(doc_id).get()
+                            if existing_wf_doc.exists:
+                                existing_data = existing_wf_doc.to_dict() or {}
+                                involved_sa = existing_data.get("involvedServiceAccounts", [])
+                                if isinstance(involved_sa, str):
+                                    involved_sa = [involved_sa]
+                                involved_agents = existing_data.get("involvedAgentIds", [])
+                                if isinstance(involved_agents, str):
+                                    involved_agents = [involved_agents]
+                                init_agent = existing_data.get("initiatingAgentId", "")
+                                owner_agent = existing_data.get("agentId", "")
+                                assigned_agent = existing_data.get("assignedAgent", "")
+
+                                is_involved = (
+                                    agent_id in involved_sa or
+                                    sa_email in involved_sa or
+                                    agent_id in involved_agents or
+                                    sa_email in involved_agents or
+                                    agent_id == init_agent or
+                                    sa_email == init_agent or
+                                    agent_id == owner_agent or
+                                    sa_email == owner_agent or
+                                    agent_id == assigned_agent or
+                                    sa_email == assigned_agent
+                                )
+
+                                if not is_involved:
+                                    latency = (time.time() - start_time) * 1000
+                                    reason = f"Workflow ownership check failed: Agent '{agent_id}' ({sa_email}) is not listed as an involved identity for workflow '{doc_id}'."
+                                    log_id = write_audit_log(agent_id, doc_id, req.action, str(req.dict()), "DENIED", "denied", reason, armor_flags, latency)
+                                    pipe_span.set_attribute("policyDecision", "denied")
+                                    pipe_span.set_attribute("latency", latency)
+                                    return JSONResponse(
+                                        status_code=status.HTTP_403_FORBIDDEN,
+                                        content={
+                                            "status": "denied",
+                                            "agentId": agent_id,
+                                            "policyDecision": "denied",
+                                            "policyReason": reason,
+                                            "auditLogId": log_id
+                                        }
+                                    )
+
                         if doc_id:
                             db.collection(req.collectionName).document(doc_id).set(data)
                         else:
