@@ -153,17 +153,18 @@ export default function Dashboard() {
     setMemoryCase(null);
     setActionMessage(null);
 
-    const invoiceId = wf.context?.invoiceId || "inv-2026-009";
-    const caseId = `case-${invoiceId}`;
-
-    const memRes = await fetchGatewayData(
-      "firestore:memory",
-      "memory",
-      "read",
-      { docId: caseId }
-    );
-    if (memRes && memRes.data) {
-      setMemoryCase(memRes.data);
+    const invoiceId = wf.context?.invoiceId;
+    if (invoiceId) {
+      const caseId = `case-${invoiceId}`;
+      const memRes = await fetchGatewayData(
+        "firestore:memory",
+        "memory",
+        "read",
+        { docId: caseId }
+      );
+      if (memRes && memRes.data) {
+        setMemoryCase(memRes.data);
+      }
     }
   };
 
@@ -172,7 +173,12 @@ export default function Dashboard() {
     setActionLoading(true);
     setActionMessage(null);
 
-    const wfId = selectedWorkflow.docId || selectedWorkflow.workflowId || "wf-inv-2026-009";
+    const wfId = selectedWorkflow.docId || selectedWorkflow.workflowId;
+    if (!wfId) {
+      setActionMessage("Error: Workflow Document ID is unavailable.");
+      setActionLoading(false);
+      return;
+    }
 
     const updateRes = await fetchGatewayData(
       "firestore:workflows",
@@ -853,10 +859,12 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-3 mb-4">
                       <div>
                         <h3 className="text-sm font-semibold text-[#0f172a]">
-                          Workflow detail & gate review: {selectedWorkflow.docId || selectedWorkflow.workflowId}
+                          Workflow detail & gate review: {selectedWorkflow.docId || selectedWorkflow.workflowId || "Data unavailable"}
                         </h3>
                         <p className="text-xs text-[#64748b]">
-                          Real findings pulled from Firestore memory collection (`memory/case-{selectedWorkflow.context?.invoiceId || "inv-2026-009"}`)
+                          {selectedWorkflow.context?.invoiceId
+                            ? `Real findings pulled from Firestore memory collection (\`memory/case-${selectedWorkflow.context.invoiceId}\`)`
+                            : "Firestore memory collection status"}
                         </p>
                       </div>
                       <button
@@ -871,19 +879,23 @@ export default function Dashboard() {
                       <div className="p-3 bg-slate-50 rounded-lg border border-[#e2e8f0]">
                         <span className="text-[11px] text-[#64748b] block mb-1">Target invoice ID</span>
                         <span className="text-xs font-semibold text-[#0f172a]">
-                          {selectedWorkflow.context?.invoiceId || "inv-2026-009"}
+                          {selectedWorkflow.context?.invoiceId || "Data unavailable"}
                         </span>
                       </div>
                       <div className="p-3 bg-slate-50 rounded-lg border border-[#e2e8f0]">
                         <span className="text-[11px] text-[#64748b] block mb-1">Invoice amount</span>
                         <span className="text-xs font-semibold text-[#0f172a]">
-                          ${selectedWorkflow.context?.amount?.toLocaleString() || "245,000"}
+                          {selectedWorkflow.context?.amount != null
+                            ? `$${Number(selectedWorkflow.context.amount).toLocaleString()}`
+                            : "Data unavailable"}
                         </span>
                       </div>
-                      <div className="p-3 bg-[#fee2e2] rounded-lg border border-red-200">
-                        <span className="text-[11px] text-[#991b1b] block mb-1">Fraud risk score</span>
-                        <span className="text-xs font-semibold text-[#991b1b]">
-                          {((selectedWorkflow.context?.riskScore || 0.85) * 100).toFixed(0)}% (HIGH RISK)
+                      <div className={`p-3 rounded-lg border ${selectedWorkflow.context?.riskScore != null ? 'bg-[#fee2e2] border-red-200' : 'bg-slate-50 border-[#e2e8f0]'}`}>
+                        <span className={`text-[11px] block mb-1 ${selectedWorkflow.context?.riskScore != null ? 'text-[#991b1b]' : 'text-[#64748b]'}`}>Fraud risk score</span>
+                        <span className={`text-xs font-semibold ${selectedWorkflow.context?.riskScore != null ? 'text-[#991b1b]' : 'text-[#64748b]'}`}>
+                          {selectedWorkflow.context?.riskScore != null
+                            ? `${(Number(selectedWorkflow.context.riskScore) * 100).toFixed(0)}% (HIGH RISK)`
+                            : "Data unavailable"}
                         </span>
                       </div>
                     </div>
@@ -897,7 +909,7 @@ export default function Dashboard() {
                         <p className="font-medium text-[#0f172a]">
                           {memoryCase?.summary ||
                             selectedWorkflow.context?.summary ||
-                            "Vendor banking details changed within 48h of submission."}
+                            "Data unavailable"}
                         </p>
                         {memoryCase?.findings && (
                           <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-[#475569]">
