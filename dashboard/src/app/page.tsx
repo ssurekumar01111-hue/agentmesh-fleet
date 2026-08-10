@@ -48,6 +48,14 @@ export default function Dashboard() {
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [triggerResult, setTriggerResult] = useState<any | null>(null);
 
+  // Async polling state — tracks the live workflow being observed post-trigger
+  const [pollWorkflowId, setPollWorkflowId] = useState<string | null>(null);
+  const [pollStatus, setPollStatus] = useState<string | null>(null);
+  const [pollWorkflow, setPollWorkflow] = useState<any | null>(null);
+  const [pollTransitions, setPollTransitions] = useState<{ status: string; ts: string; elapsed: number }[]>([]);
+  const [pollStartTs, setPollStartTs] = useState<number>(0);
+  const [isPolling, setIsPolling] = useState(false);
+
   const fetchGatewayData = async (
     targetResource: string,
     collectionName: string,
@@ -118,7 +126,7 @@ export default function Dashboard() {
   const totalDomainAgents = domainAgents.length;
   const activeDomainAgentsCount = domainAgents.filter((a) => a.status === "active").length;
   const runningWorkflowsCount = workflows.filter(
-    (w) => w.status === "running" || w.status === "waiting_approval" || w.status === "resumed"
+    (w) => w.status === "queued" || w.status === "running" || w.status === "waiting_approval" || w.status === "resumed"
   ).length;
 
   const threatsBlockedCount = auditLogs.filter(
@@ -239,10 +247,73 @@ export default function Dashboard() {
     if (logRes && Array.isArray(logRes.data)) setAuditLogs(logRes.data);
   };
 
+  // Poll a workflow document via Gateway every 2.5s until terminal state
+  const startPollingWorkflow = async (workflowId: string, startTs: number) => {
+    setIsPolling(true);
+    setPollWorkflowId(workflowId);
+    setPollTransitions([]);
+    setPollStatus("queued");
+    setPollWorkflow(null);
+    setPollStartTs(startTs);
+
+    const TERMINAL_STATES = ["waiting_approval", "completed", "failed"];
+    const MAX_WAIT_MS = 180_000; // 3 minutes
+    const POLL_INTERVAL_MS = 2500;
+    const seenStatuses = new Set<string>();
+
+    let elapsed = 0;
+    while (elapsed < MAX_WAIT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      elapsed += POLL_INTERVAL_MS;
+
+      try {
+        const wfRes = await fetchGatewayData(
+          "firestore:workflows",
+          "workflows",
+          "read",
+          { docId: workflowId }
+        );
+
+        const wf = wfRes?.data || wfRes || null;
+        const status = wf?.status;
+
+        if (status && !seenStatuses.has(status)) {
+          seenStatuses.add(status);
+          const transitionTs = new Date().toISOString();
+          const elapsedSec = Math.round((Date.now() - startTs) / 100) / 10;
+          setPollTransitions((prev) => [
+            ...prev,
+            { status, ts: transitionTs, elapsed: elapsedSec },
+          ]);
+          console.log(`[Poll] Workflow '${workflowId}' → status='${status}' at T+${elapsedSec}s (${transitionTs})`);
+        }
+
+        setPollStatus(status || "queued");
+        setPollWorkflow(wf);
+
+        if (status && TERMINAL_STATES.includes(status)) {
+          // Refresh the workflows list once we hit terminal
+          await loadData();
+          break;
+        }
+      } catch (err) {
+        console.warn("[Poll] Error reading workflow:", err);
+      }
+    }
+
+    setIsPolling(false);
+  };
+
   // Run Real Agent Investigation Trigger
   const runAgentTrigger = async () => {
     setTriggerLoading(true);
     setTriggerResult(null);
+    setPollWorkflowId(null);
+    setPollStatus(null);
+    setPollWorkflow(null);
+    setPollTransitions([]);
+    setIsPolling(false);
+
     try {
       const res = await fetch("/api/trigger-agent", {
         method: "POST",
@@ -252,14 +323,27 @@ export default function Dashboard() {
           targetRecord: triggerTargetRecord,
         }),
       });
+
       const data = await res.json();
-      setTriggerResult(data);
-      await loadData();
+
+      if (data.status === "queued" && data.workflowId) {
+        // 202 Accepted — workflow is queued. Begin polling.
+        setTriggerResult(data);
+        setTriggerLoading(false);
+        // Refresh to show the new queued workflow in the list immediately
+        await loadData();
+        // Start background polling (non-blocking)
+        startPollingWorkflow(data.workflowId, Date.now());
+      } else {
+        // Error or unexpected response
+        setTriggerResult(data);
+        setTriggerLoading(false);
+      }
     } catch (err: any) {
       console.error("Trigger agent error:", err);
       setTriggerResult({ status: "error", detail: err.message });
+      setTriggerLoading(false);
     }
-    setTriggerLoading(false);
   };
 
   // Helper for workflow status stepper
@@ -772,10 +856,98 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {triggerResult && (
+                  {/* Live Async Polling Panel */}
+                  {triggerResult && triggerResult.status === "queued" && (
+                    <div className="mt-3 space-y-3">
+                      {/* Queued confirmation row */}
+                      <div className="p-3 rounded-lg bg-blue-950 border border-blue-800 text-blue-100 text-xs font-mono flex items-start gap-3">
+                        <div className="shrink-0 mt-0.5">
+                          {isPolling ? (
+                            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-[9px] font-bold text-white">✓</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-blue-300 mb-0.5">
+                            {isPolling ? "Investigation in progress — polling Firestore..." : "Investigation completed"}
+                          </div>
+                          <div className="text-blue-400">
+                            Workflow: <span className="text-white">{triggerResult.workflowId}</span>
+                            {triggerResult.messageId && (
+                              <> · Pub/Sub Message: <span className="text-white">{triggerResult.messageId}</span></>
+                            )}
+                          </div>
+                          <div className="text-blue-500 mt-0.5">Queued at: {triggerResult.queuedAt}</div>
+                        </div>
+                      </div>
+
+                      {/* Live stepper showing real-time state */}
+                      {pollStatus && (
+                        <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm">
+                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                            {isPolling ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                                Live state (polling every 2.5s)
+                              </span>
+                            ) : "Final state"}
+                          </div>
+                          {renderWorkflowStepper(pollStatus)}
+                        </div>
+                      )}
+
+                      {/* State transition log */}
+                      {pollTransitions.length > 0 && (
+                        <div className="p-3 rounded-lg bg-slate-900 border border-slate-700">
+                          <div className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">State Transitions (Real timestamps)</div>
+                          <div className="space-y-1">
+                            {pollTransitions.map((t, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-[11px] font-mono">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  t.status === "queued" ? "bg-slate-700 text-slate-200"
+                                  : t.status === "running" ? "bg-blue-800 text-blue-100"
+                                  : t.status === "waiting_approval" ? "bg-amber-800 text-amber-100"
+                                  : t.status === "resumed" ? "bg-purple-800 text-purple-100"
+                                  : t.status === "completed" ? "bg-emerald-800 text-emerald-100"
+                                  : "bg-red-800 text-red-100"
+                                }`}>{t.status}</span>
+                                <span className="text-slate-400">T+{t.elapsed}s</span>
+                                <span className="text-slate-500">{t.ts}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Final result fields once terminal */}
+                      {!isPolling && pollWorkflow && (
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                          <div className="font-semibold text-slate-600 mb-2">Terminal workflow state (Firestore)</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {pollWorkflow.context?.riskScore != null && (
+                              <div className="p-2 rounded bg-red-50 border border-red-100">
+                                <span className="text-[10px] text-red-600 block">Risk Score</span>
+                                <span className="font-bold text-red-800">{(Number(pollWorkflow.context.riskScore) * 100).toFixed(0)}%</span>
+                              </div>
+                            )}
+                            {pollWorkflow.context?.summary && (
+                              <div className="p-2 rounded bg-slate-100 border border-slate-200 col-span-2">
+                                <span className="text-[10px] text-slate-500 block">Summary</span>
+                                <span className="text-slate-700">{pollWorkflow.context.summary}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Error or non-queued response */}
+                  {triggerResult && triggerResult.status !== "queued" && (
                     <div className="mt-3 p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto border border-slate-800">
-                      <div className="text-[11px] font-bold text-emerald-400 mb-1">
-                        ✓ Cloud Run Response (Real Execution Output):
+                      <div className={`text-[11px] font-bold mb-1 ${triggerResult.status === "error" ? "text-red-400" : "text-emerald-400"}`}>
+                        {triggerResult.status === "error" ? "✗ Error:" : "✓ Response:"}
                       </div>
                       <pre>{JSON.stringify(triggerResult, null, 2)}</pre>
                     </div>
