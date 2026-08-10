@@ -16,11 +16,11 @@ def health_check():
     return {"status": "ok", "service": "agentmesh-compliance"}
 
 @app.post("/review")
-def review_workflow(req: WorkflowReviewRequest):
+async def review_workflow(req: WorkflowReviewRequest):
     with tracer.start_as_current_span("Review Workflow Compliance") as span:
         span.set_attribute("workflowId", req.workflowId)
         try:
-            res = agent.review_workflow_compliance(req.workflowId)
+            res = await agent.review_workflow_compliance(req.workflowId)
             span.set_attribute("assessmentDecision", res.get("assessmentDecision", "unknown"))
             return {"status": "success", "data": res}
         except Exception as e:
