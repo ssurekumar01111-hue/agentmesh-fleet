@@ -45,7 +45,7 @@ class GatewayClient:
             "action": action,
             "payload": payload or {}
         }
-        res = requests.post(url, json=body, headers=self._headers(), timeout=15)
+        res = requests.post(url, json=body, headers=self._headers(), timeout=45)
         if res.status_code != 200:
             try:
                 err_json = res.json()
@@ -136,3 +136,25 @@ class GatewayClient:
             action="read",
             payload={"docId": "emp-001"}
         )
+
+    def update_workflow(self, workflow_id: str, status: str, current_step: str, context: Dict[str, Any]) -> str:
+        payload = {
+            "docId": workflow_id,
+            "data": {
+                "type": "compliance-review",
+                "status": status,
+                "initiatingAgentId": "compliance",
+                "involvedAgentIds": ["fraud-finance", "compliance"],
+                "involvedServiceAccounts": [self.sa_email, f"agentmesh-gateway@{PROJECT_ID}.iam.gserviceaccount.com"],
+                "currentStep": current_step,
+                "context": context,
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        self.call_gateway(
+            target_resource="firestore:workflows",
+            collection_name="workflows",
+            action="write",
+            payload=payload
+        )
+        return workflow_id
