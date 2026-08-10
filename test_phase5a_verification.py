@@ -59,7 +59,7 @@ def run_test():
                 **before_wf,
                 "status": "resumed",
                 "currentStep": "human_approval_granted",
-                "updatedAt": "AUTO_TIMESTAMP"
+                "updatedAt": datetime.now(timezone.utc).isoformat()
             }
         }
     }

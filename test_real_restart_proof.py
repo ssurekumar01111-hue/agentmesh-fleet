@@ -124,7 +124,7 @@ async def main():
             "findings": c_findings,
             "assessmentDecision": decision,
             "history": ["Compliance audit initiated via Gateway.", f"Decision={decision}"],
-            "updatedAt": "AUTO_TIMESTAMP"
+            "updatedAt": datetime.now(timezone.utc).isoformat()
         }
     })
 

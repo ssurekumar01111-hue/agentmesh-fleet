@@ -95,24 +95,25 @@ flowchart TD
 
 ---
 
-## ADK Adoption Status (All 6 Agents — Phase 9a + 9b Complete)
+## ADK Adoption Status (All 6 Agents — Genuine ADK Runner Rollout Complete)
 
-| Agent | ADK LlmAgent | FunctionTools | Runner | InMemorySessionService | Phase |
+| Agent | ADK LlmAgent | FunctionTools (Exclusive Call Path) | ADK Runner (`run_async`) | Session Service | Status |
 |---|---|---|---|---|---|
-| fraud-finance | ✅ | fetch_invoice, fetch_vendor_history, write_memory, update_workflow | ✅ | ✅ | 9a |
-| it-security | ✅ | list_issues, list_commits, create_issue, write_memory, update_incident, update_workflow | ✅ | ✅ | 9b |
-| compliance | ✅ | fetch_workflow, fetch_memory, fetch_policies, write_memory, read_hr_employees | ✅ | ✅ | 9b |
-| expense-approval | ✅ | fetch_expense, write_memory, update_workflow | ✅ | ✅ | 9b |
-| hr-leave | ✅ | fetch_leave_request, fetch_employee, write_memory, update_workflow | ✅ | ✅ | 9b |
-| legal-contract | ✅ | fetch_contract, write_memory, update_workflow | ✅ | ✅ | 9b |
+| fraud-finance | ✅ | fetch_invoice, fetch_vendor_history, write_memory, update_workflow | ✅ | InMemorySessionService | Phase 13a Verified |
+| it-security | ✅ | list_issues, list_commits, create_issue, write_memory, update_incident, update_workflow | ✅ | InMemorySessionService | Phase 13b Verified |
+| compliance | ✅ | fetch_workflow, fetch_memory, fetch_policies, write_memory, read_hr_employees | ✅ | InMemorySessionService | Phase 13b Verified |
+| expense-approval | ✅ | fetch_expense, write_memory, update_workflow | ✅ | InMemorySessionService | Phase 13b Verified |
+| hr-leave | ✅ | fetch_leave_request, fetch_employee, write_memory, update_workflow | ✅ | InMemorySessionService | Phase 13b Verified |
+| legal-contract | ✅ | fetch_contract, write_memory, update_workflow | ✅ | InMemorySessionService | Phase 13b Verified |
 
 ---
 
 ## Real Execution Flow & Zero-Trust Guarantees
 
 1. **Identity & Auth Isolation**: Each agent runs as a distinct Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, `agentmesh-compliance@...`, `agentmesh-expense-approval@...`, `agentmesh-hr-leave@...`, `agentmesh-legal-contract@...`).
-2. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline via ADK FunctionTools wrapping GatewayClient calls.
-3. **Threat Shield (Guard Pipeline)**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
-4. **Persisted Workflow Resumption**: Paused workflows store state in Firestore (`workflows` collection), surviving Cloud Run process restarts.
-5. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability. ADK's internal tracer runs on a separate namespace — no conflict with each agent's `telemetry.py` tracer.
-6. **Compliance Policy Bug Fix (Phase 9b)**: `get_policies()` now uses `action="read"` with no docId, triggering the Gateway's collection-stream path and returning real Firestore policy documents for compliance reasoning.
+2. **Genuine ADK Runner Loop**: All 6 domain agents run tool calls exclusively through Google ADK `Runner.run_async()` tool-execution loop (`LlmAgent` + `FunctionTool` closures). There are no manual or out-of-band call paths to these functions outside the Runner.
+3. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline via ADK FunctionTools wrapping GatewayClient calls.
+4. **Authoritative Timestamps**: All write actions use ISO 8601 UTC timestamps set dynamically (`datetime.now(timezone.utc).isoformat()`), replacing literal placeholders.
+5. **Threat Shield (Guard Pipeline)**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
+6. **Persisted Workflow Resumption**: Paused workflows store state in Firestore (`workflows` collection), surviving Cloud Run process restarts.
+7. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability. ADK's internal tracer runs on a separate namespace — no conflict with each agent's `telemetry.py` tracer.

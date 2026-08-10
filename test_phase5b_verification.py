@@ -127,7 +127,7 @@ def run_e2e_verification():
                 **wf_before,
                 "status": "resumed",
                 "currentStep": "human_approval_granted",
-                "updatedAt": "AUTO_TIMESTAMP"
+                "updatedAt": datetime.now(timezone.utc).isoformat()
             }
         }
     }

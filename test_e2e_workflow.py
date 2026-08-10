@@ -135,7 +135,7 @@ async def run_track1_invoice_workflow():
             "findings": c_findings,
             "assessmentDecision": decision,
             "history": ["Compliance audit initiated via Gateway.", f"Decision={decision}"],
-            "updatedAt": "AUTO_TIMESTAMP"
+            "updatedAt": datetime.now(timezone.utc).isoformat()
         }
     })
 
@@ -160,7 +160,7 @@ async def run_track1_invoice_workflow():
     assert res_data.get("status") == "resumed", f"Expected 'resumed', got {res_data.get('status')}"
 
     ctx = res_data.get("context", {})
-    ctx["resumedAt"] = "AUTO_TIMESTAMP"
+    ctx["resumedAt"] = datetime.now(timezone.utc).isoformat()
     ctx["finalResolution"] = "Human approval granted; invoice payment authorized."
 
     await call_gateway_direct(fraud_sa, "firestore:workflows", "workflows", "write", {
@@ -173,7 +173,7 @@ async def run_track1_invoice_workflow():
             "involvedServiceAccounts": [fraud_sa],
             "currentStep": "review_complete",
             "context": ctx,
-            "updatedAt": "AUTO_TIMESTAMP"
+            "updatedAt": datetime.now(timezone.utc).isoformat()
         }
     })
     final_wf = read_workflow_state("STEP 5: AFTER RESUMPTION ('completed')")
