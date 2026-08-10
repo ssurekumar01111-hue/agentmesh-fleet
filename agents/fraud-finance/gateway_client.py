@@ -48,7 +48,7 @@ class GatewayClient:
             "action": action,
             "payload": payload or {}
         }
-        res = requests.post(url, json=body, headers=self._headers(), timeout=30)
+        res = requests.post(url, json=body, headers=self._headers(), timeout=45)
         if res.status_code != 200:
             raise RuntimeError(f"Gateway call failed [{res.status_code}]: {res.text}")
         return res.json().get("data", {})
@@ -114,3 +114,26 @@ class GatewayClient:
             payload=payload
         )
         return workflow_id
+
+    def claim_workflow(self, workflow_id: str, expected_status: str = "queued", new_status: str = "running", current_step: str = "running", context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        payload = {
+            "docId": workflow_id,
+            "expectedStatus": expected_status,
+            "newStatus": new_status,
+            "data": {
+                "type": "invoice-review",
+                "status": new_status,
+                "initiatingAgentId": "fraud-finance",
+                "involvedAgentIds": ["fraud-finance", "compliance"],
+                "involvedServiceAccounts": [self.sa_email, f"agentmesh-gateway@{PROJECT_ID}.iam.gserviceaccount.com"],
+                "currentStep": current_step,
+                "context": context or {},
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        return self.call_gateway(
+            target_resource="firestore:workflows",
+            collection_name="workflows",
+            action="claim",
+            payload=payload
+        )

@@ -9,6 +9,7 @@ Also exposes a dedicated, authenticated Policy Simulation endpoint for zero-trus
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, Request, HTTPException, Header, Depends, status
 from fastapi.responses import JSONResponse
@@ -463,6 +464,102 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                         else:
                             db.collection(req.collectionName).add(data)
                         result = {"status": "written"}
+
+                    elif req.action == "claim":
+                        doc_id = req.payload.get("docId") if req.payload else None
+                        data = req.payload.get("data", {}) if req.payload else {}
+                        expected_status = req.payload.get("expectedStatus", "queued") if req.payload else "queued"
+                        new_status = req.payload.get("newStatus", "running") if req.payload else "running"
+
+                        if not isinstance(expected_status, list):
+                            expected_statuses = [expected_status]
+                        else:
+                            expected_statuses = expected_status
+
+                        if not doc_id:
+                            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="docId is required for action 'claim'")
+
+                        # Stage 3.1: Workflow Ownership Enforcement Check
+                        if req.collectionName == "workflows":
+                            existing_wf_doc = db.collection("workflows").document(doc_id).get()
+                            if existing_wf_doc.exists:
+                                existing_data = existing_wf_doc.to_dict() or {}
+                                involved_sa = existing_data.get("involvedServiceAccounts", [])
+                                if isinstance(involved_sa, str):
+                                    involved_sa = [involved_sa]
+                                involved_agents = existing_data.get("involvedAgentIds", [])
+                                if isinstance(involved_agents, str):
+                                    involved_agents = [involved_agents]
+                                init_agent = existing_data.get("initiatingAgentId", "")
+                                owner_agent = existing_data.get("agentId", "")
+                                assigned_agent = existing_data.get("assignedAgent", "")
+
+                                is_dashboard_operator = (
+                                    agent_id == "dashboard" or
+                                    sa_email == "agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com"
+                                )
+
+                                is_involved = (
+                                    is_dashboard_operator or
+                                    agent_id in involved_sa or
+                                    sa_email in involved_sa or
+                                    agent_id in involved_agents or
+                                    sa_email in involved_agents or
+                                    agent_id == init_agent or
+                                    sa_email == init_agent or
+                                    agent_id == owner_agent or
+                                    sa_email == owner_agent or
+                                    agent_id == assigned_agent or
+                                    sa_email == assigned_agent
+                                )
+
+                                if not is_involved:
+                                    latency = (time.time() - start_time) * 1000
+                                    reason = f"Workflow ownership check failed: Agent '{agent_id}' ({sa_email}) is not listed as an involved identity for workflow '{doc_id}'."
+                                    log_id = write_audit_log(agent_id, doc_id, req.action, str(req.dict()), "DENIED", "denied", reason, armor_flags, latency)
+                                    pipe_span.set_attribute("policyDecision", "denied")
+                                    pipe_span.set_attribute("latency", latency)
+                                    return JSONResponse(
+                                        status_code=status.HTTP_403_FORBIDDEN,
+                                        content={
+                                            "status": "denied",
+                                            "agentId": agent_id,
+                                            "policyDecision": "denied",
+                                            "policyReason": reason,
+                                            "auditLogId": log_id
+                                        }
+                                    )
+
+                        doc_ref = db.collection(req.collectionName).document(doc_id)
+                        transaction = db.transaction()
+
+                        @firestore.transactional
+                        def execute_claim(txn, ref):
+                            snapshot = ref.get(transaction=txn)
+                            if not snapshot.exists:
+                                return False, "not_found", {}
+                            current_data = snapshot.to_dict() or {}
+                            current_status = current_data.get("status")
+                            if current_status not in expected_statuses:
+                                return False, current_status, current_data
+
+                            merged = {
+                                **current_data,
+                                **data,
+                                "status": new_status,
+                                "updatedAt": datetime.now(timezone.utc).isoformat()
+                            }
+                            txn.set(ref, merged)
+                            return True, new_status, merged
+
+                        claimed, final_status, final_data = execute_claim(transaction, doc_ref)
+                        result = {
+                            "status": "claimed" if claimed else "claim_failed",
+                            "claimed": claimed,
+                            "currentStatus": final_status,
+                            "docId": doc_id,
+                            "data": final_data if claimed else {}
+                        }
                     else:
                         result = {"status": "forwarded", "collection": req.collectionName}
                 else:
