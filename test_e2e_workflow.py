@@ -39,7 +39,7 @@ import importlib
 import importlib.util
 
 class FakeRequest:
-    pass
+    headers = {}
 
 async def call_gateway_direct(caller_sa, resource, collection, action, payload):
     req = GatewayRequest(
@@ -98,50 +98,15 @@ async def run_track1_invoice_workflow():
     fraud_sa = f"agentmesh-fraud-finance@{PROJECT_ID}.iam.gserviceaccount.com"
     comp_sa = f"agentmesh-compliance@{PROJECT_ID}.iam.gserviceaccount.com"
 
-    # Step 1: Fraud-Finance agent reads invoice & vendor via Gateway, executes Gemini reasoning, writes memory & workflow
-    print("\n[Step 1] Initializing Fraud-Finance Agent workflow for fresh invoice 'inv-2026-009' via Gateway...")
-    inv_res = await call_gateway_direct(fraud_sa, "firestore:sandbox_invoices", "sandbox_invoices", "read", {"docId": INVOICE_ID})
-    invoice = inv_res.get("data", {})
-    vendor_id = invoice.get("vendorId")
-
-    vend_res = await call_gateway_direct(fraud_sa, "firestore:sandbox_vendors", "sandbox_vendors", "read", {"docId": vendor_id})
-    vendor = vend_res.get("data", {})
-
-    fraud_reasoning = load_module("fraud_reasoning", "agents/fraud-finance", "reasoning.py")
-    f_engine = fraud_reasoning.FraudReasoningEngine()
-    risk_score, f_summary, f_findings, status = f_engine.analyze_invoice(invoice, vendor)
+    # Step 1: Fraud-Finance agent investigates invoice via ADK Runner
+    print("\n[Step 1] Initializing Fraud-Finance Agent workflow for fresh invoice 'inv-2026-009' via ADK Runner...")
+    fraud_agent = FraudFinanceAgent()
+    res = await fraud_agent.process_invoice(INVOICE_ID)
+    risk_score = res["riskScore"]
+    status = res["assessmentStatus"]
 
     print(f"  • Fraud Risk Score : {risk_score}")
     print(f"  • Fraud Assessment : {status}")
-
-    await call_gateway_direct(fraud_sa, "firestore:memory", "memory", "write", {
-        "docId": CASE_ID,
-        "data": {
-            "workflowId": WORKFLOW_ID,
-            "entityType": "invoice",
-            "entityId": CASE_ID,
-            "summary": f_summary,
-            "findings": f_findings,
-            "riskScore": risk_score,
-            "history": ["Investigation initiated.", "Vendor baseline fetched.", f"Risk score {risk_score:.2f}"],
-            "updatedAt": "AUTO_TIMESTAMP"
-        }
-    })
-
-    wf_status = "waiting_approval" if risk_score >= 0.70 else "completed"
-    await call_gateway_direct(fraud_sa, "firestore:workflows", "workflows", "write", {
-        "docId": WORKFLOW_ID,
-        "data": {
-            "type": "invoice-review",
-            "status": wf_status,
-            "initiatingAgentId": "fraud-finance",
-            "involvedAgentIds": ["fraud-finance", "compliance"],
-            "involvedServiceAccounts": [fraud_sa],
-            "currentStep": "human_approval_gate",
-            "context": {"invoiceId": INVOICE_ID, "amount": invoice.get("amount"), "riskScore": risk_score},
-            "updatedAt": "AUTO_TIMESTAMP"
-        }
-    })
     read_workflow_state("STEP 1: AFTER FRAUD INVESTIGATION ('waiting_approval')")
 
     # Step 2: Compliance Agent reads workflow, memory, and policies via Gateway, executes Gemini reasoning, writes memory

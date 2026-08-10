@@ -33,7 +33,7 @@ import importlib
 import importlib.util
 
 class FakeRequest:
-    pass
+    headers = {}
 
 async def call_gateway_direct(caller_sa, resource, collection, action, payload):
     req = GatewayRequest(
@@ -89,45 +89,13 @@ async def main():
     fraud_sa = f"agentmesh-fraud-finance@{PROJECT_ID}.iam.gserviceaccount.com"
     comp_sa = f"agentmesh-compliance@{PROJECT_ID}.iam.gserviceaccount.com"
 
-    # Step 1: Confirm/create workflow at waiting_approval
-    print("\n[Step 1] Seed / Verify workflow at 'waiting_approval' for inv-2026-009...")
-    inv_res = await call_gateway_direct(fraud_sa, "firestore:sandbox_invoices", "sandbox_invoices", "read", {"docId": INVOICE_ID})
-    invoice = inv_res.get("data", {})
-    vendor_id = invoice.get("vendorId")
-    vend_res = await call_gateway_direct(fraud_sa, "firestore:sandbox_vendors", "sandbox_vendors", "read", {"docId": vendor_id})
-    vendor = vend_res.get("data", {})
-
-    fraud_reasoning = load_module("fraud_reasoning", "agents/fraud-finance", "reasoning.py")
-    f_engine = fraud_reasoning.FraudReasoningEngine()
-    risk_score, f_summary, f_findings, status = f_engine.analyze_invoice(invoice, vendor)
-
-    await call_gateway_direct(fraud_sa, "firestore:memory", "memory", "write", {
-        "docId": CASE_ID,
-        "data": {
-            "workflowId": WORKFLOW_ID,
-            "entityType": "invoice",
-            "entityId": CASE_ID,
-            "summary": f_summary,
-            "findings": f_findings,
-            "riskScore": risk_score,
-            "history": ["Investigation initiated.", "Vendor baseline fetched.", f"Risk score {risk_score:.2f}"],
-            "updatedAt": "AUTO_TIMESTAMP"
-        }
-    })
-
-    await call_gateway_direct(fraud_sa, "firestore:workflows", "workflows", "write", {
-        "docId": WORKFLOW_ID,
-        "data": {
-            "type": "invoice-review",
-            "status": "waiting_approval",
-            "initiatingAgentId": "fraud-finance",
-            "involvedAgentIds": ["fraud-finance", "compliance"],
-            "involvedServiceAccounts": [fraud_sa],
-            "currentStep": "human_approval_gate",
-            "context": {"invoiceId": INVOICE_ID, "amount": invoice.get("amount"), "riskScore": risk_score},
-            "updatedAt": "AUTO_TIMESTAMP"
-        }
-    })
+    # Step 1: Confirm/create workflow at waiting_approval via ADK Runner on live Cloud Run
+    print("\n[Step 1] Initializing Fraud-Finance Agent workflow for fresh invoice 'inv-2026-009' via ADK Runner on live Cloud Run...")
+    req_data = json.dumps({"invoiceId": INVOICE_ID}).encode("utf-8")
+    req = urllib.request.Request(f"{SERVICE_URL}/investigate", data=req_data, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req) as resp:
+        inv_resp = json.loads(resp.read().decode("utf-8"))
+    print(f"  • /investigate Response: {json.dumps(inv_resp, indent=2)}")
     wf_s1 = read_workflow_state("STEP 1: CREATED/CONFIRMED WAITING_APPROVAL")
     assert wf_s1.get("status") == "waiting_approval"
 

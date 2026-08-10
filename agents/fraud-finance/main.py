@@ -15,11 +15,11 @@ class ResumeRequest(BaseModel):
     workflowId: str
 
 @app.post("/investigate")
-def investigate_invoice(req: InvestigationRequest):
+async def investigate_invoice(req: InvestigationRequest):
     with tracer.start_as_current_span("Investigate Invoice Workflow") as span:
         span.set_attribute("invoiceId", req.invoiceId)
         try:
-            res = agent.process_invoice(req.invoiceId)
+            res = await agent.process_invoice(req.invoiceId)
             span.set_attribute("workflowStatus", res.get("workflowStatus", "unknown"))
             return res
         except Exception as e:
