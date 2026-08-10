@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import os
 import requests
 from typing import Dict, Any, Optional, List
@@ -96,7 +97,7 @@ class GatewayClient:
                 "findings": findings,
                 "riskScore": risk_score,
                 "history": history,
-                "updatedAt": "AUTO_TIMESTAMP",
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
             },
         }
         self.call_gateway(
@@ -127,7 +128,7 @@ class GatewayClient:
                 ],
                 "currentStep": current_step,
                 "context": context,
-                "updatedAt": "AUTO_TIMESTAMP",
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
             },
         }
         self.call_gateway(

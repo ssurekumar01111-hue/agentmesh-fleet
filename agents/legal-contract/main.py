@@ -18,17 +18,17 @@ class ContractReviewRequest(BaseModel):
 
 
 @app.post("/review")
-def review_contract(req: ContractReviewRequest):
+async def review_contract(req: ContractReviewRequest):
     """Submit a contract for legal policy review.
 
-    The agent fetches the contract from Firestore via Gateway, runs Gemini
-    reasoning on raw clause text and fields, writes Memory, and escalates to 'waiting_approval' if
+    The agent fetches the contract from Firestore via Gateway, runs ADK Runner
+    on raw clause text and fields, writes Memory, and escalates to 'waiting_approval' if
     FLAGGED or ESCALATED.
     """
     with tracer.start_as_current_span("Review Contract Workflow") as span:
         span.set_attribute("contractId", req.contractId)
         try:
-            res = agent.process_contract(req.contractId)
+            res = await agent.process_contract(req.contractId)
             span.set_attribute("assessmentStatus", res.get("assessmentStatus", "unknown"))
             span.set_attribute("workflowStatus", res.get("workflowStatus", "unknown"))
             span.set_attribute("riskScore", res.get("riskScore", -1))
