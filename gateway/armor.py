@@ -39,10 +39,10 @@ class GuardPipeline:
         self.use_llm = False
         try:
             vertexai.init(project=self.project_id, location=self.location)
-            self.model = GenerativeModel("gemini-2.5-flash")
+            self.model = GenerativeModel("gemini-3.5-flash")
             self.vertex_initialized = True
             self.use_llm = True
-            print(f"[GuardPipeline] SUCCESS: Vertex AI initialized (project={self.project_id}, location={self.location}, model=gemini-2.5-flash, self.use_llm=True).")
+            print(f"[GuardPipeline] SUCCESS: Vertex AI initialized (project={self.project_id}, location={self.location}, model=gemini-3.5-flash, self.use_llm=True).")
         except Exception as e:
             print(f"[GuardPipeline] LOUD WARNING: Vertex AI init failed ({e}). LLM guard path DISABLED (self.use_llm=False), falling back to regex armor!")
             self.vertex_initialized = False
