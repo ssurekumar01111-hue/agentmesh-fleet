@@ -18,17 +18,16 @@ class LeaveReviewRequest(BaseModel):
 
 
 @app.post("/review")
-def review_leave_request(req: LeaveReviewRequest):
+async def review_leave_request(req: LeaveReviewRequest):
     """Submit a leave request for HR policy review.
 
-    The agent fetches the leave request from Firestore via Gateway, runs Gemini
-    reasoning, writes Memory, and escalates to 'waiting_approval' if
-    FLAGGED or ESCALATED.
+    The agent fetches the leave request from Firestore via Gateway, runs ADK Runner,
+    writes Memory, and escalates to 'waiting_approval' if FLAGGED or ESCALATED.
     """
     with tracer.start_as_current_span("Review Leave Request Workflow") as span:
         span.set_attribute("requestId", req.requestId)
         try:
-            res = agent.process_leave_request(req.requestId)
+            res = await agent.process_leave_request(req.requestId)
             span.set_attribute("assessmentStatus", res.get("assessmentStatus", "unknown"))
             span.set_attribute("workflowStatus", res.get("workflowStatus", "unknown"))
             span.set_attribute("riskScore", res.get("riskScore", -1))
