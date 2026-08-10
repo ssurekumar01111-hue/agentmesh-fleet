@@ -123,35 +123,11 @@ async def worker_review(request: Request):
         span.set_attribute("requestId", request_id)
         span.set_attribute("workflowId", workflow_id)
 
-        # 4. IDEMPOTENCY GUARD: Check current workflow status in Firestore via Gateway
-        try:
-            existing_wf = agent.client.call_gateway(
-                target_resource="firestore:workflows",
-                collection_name="workflows",
-                action="read",
-                payload={"docId": workflow_id}
-            )
-            current_status = existing_wf.get("status") if existing_wf else None
-        except Exception as e:
-            print(f"[-] [Idempotency Guard] Note: Could not read existing workflow ({e})")
-            current_status = None
-
-        print(f"[*] [Idempotency Guard] Current status for '{workflow_id}' is '{current_status}'")
-
-        if current_status in ["running", "waiting_approval", "completed", "resumed"]:
-            print(f"[!] [Idempotency Guard] Skipping execution for '{workflow_id}' because status is already '{current_status}'.")
-            return {
-                "status": "skipped",
-                "reason": f"Workflow '{workflow_id}' already in status '{current_status}'",
-                "workflowId": workflow_id,
-                "requestId": request_id,
-                "currentStatus": current_status
-            }
-
-        # Mark workflow status="running"
-        agent.client.update_workflow(
+        # 4. ATOMIC IDEMPOTENCY GUARD: Claim workflow status in Firestore via Gateway transaction
+        claim_res = agent.client.claim_workflow(
             workflow_id=workflow_id,
-            status="running",
+            expected_status="queued",
+            new_status="running",
             current_step="leave_policy_evaluation",
             context={
                 "requestId": request_id,
@@ -159,7 +135,19 @@ async def worker_review(request: Request):
                 "startedAt": datetime.now(timezone.utc).isoformat()
             }
         )
-        print(f"[+] [/worker/review] Marked workflow '{workflow_id}' as status='running'. Invoking process_leave_request...")
+
+        if not claim_res.get("claimed", False):
+            current_st = claim_res.get("currentStatus", "unknown")
+            print(f"[!] [Idempotency Guard] Atomic claim failed for '{workflow_id}'. Current status is '{current_st}'. Skipping execution.")
+            return {
+                "status": "skipped",
+                "reason": f"Atomic claim failed: Workflow '{workflow_id}' already claimed by concurrent delivery (status: '{current_st}')",
+                "workflowId": workflow_id,
+                "requestId": request_id,
+                "currentStatus": current_st
+            }
+
+        print(f"[+] [/worker/review] Atomically claimed workflow '{workflow_id}' with status='running'. Invoking process_leave_request...")
 
         # Process leave review using unchanged agent logic
         try:
