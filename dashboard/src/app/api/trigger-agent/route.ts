@@ -33,6 +33,20 @@ const AGENT_ENDPOINTS: Record<string, { serviceUrl: string; endpointPath: string
   },
 };
 
+async function getOidcToken(audience: string): Promise<string | null> {
+  try {
+    const res = await fetch(`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}`, {
+      headers: { 'Metadata-Flavor': 'Google' }
+    });
+    if (res.ok) {
+      return (await res.text()).trim();
+    }
+  } catch (e) {
+    console.log("[DashboardAuth] Not on GCP metadata server, skipping OIDC token fetch.");
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -53,6 +67,11 @@ export async function POST(request: Request) {
       "Content-Type": "application/json",
       "x-emulated-sa": "agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com",
     };
+
+    const token = await getOidcToken(agentConfig.serviceUrl);
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
     const res = await fetch(fullUrl, {
       method: "POST",
