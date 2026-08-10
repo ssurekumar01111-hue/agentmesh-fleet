@@ -18,17 +18,16 @@ class ExpenseReviewRequest(BaseModel):
 
 
 @app.post("/review")
-def review_expense(req: ExpenseReviewRequest):
+async def review_expense(req: ExpenseReviewRequest):
     """Submit an expense report for policy review.
 
-    The agent fetches the expense from Firestore via Gateway, runs Gemini
-    reasoning, writes Memory, and escalates to 'waiting_approval' if
-    FLAGGED or ESCALATED.
+    The agent fetches the expense from Firestore via Gateway, runs ADK Runner,
+    writes Memory, and escalates to 'waiting_approval' if FLAGGED or ESCALATED.
     """
     with tracer.start_as_current_span("Review Expense Workflow") as span:
         span.set_attribute("expenseId", req.expenseId)
         try:
-            res = agent.process_expense(req.expenseId)
+            res = await agent.process_expense(req.expenseId)
             span.set_attribute("assessmentStatus", res.get("assessmentStatus", "unknown"))
             span.set_attribute("workflowStatus", res.get("workflowStatus", "unknown"))
             span.set_attribute("riskScore", res.get("riskScore", -1))
