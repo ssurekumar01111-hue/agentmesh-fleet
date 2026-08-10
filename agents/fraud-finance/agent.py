@@ -233,7 +233,8 @@ After calling all tools, output your final result as raw JSON in the exact struc
             raise ValueError(f"Workflow '{workflow_id}' status is '{current_status}' (expected 'resumed').")
 
         context = res.get("context", {})
-        context["resumedAt"] = "AUTO_TIMESTAMP"
+        from datetime import datetime, timezone
+        context["resumedAt"] = datetime.now(timezone.utc).isoformat()
         context["finalResolution"] = "Human approval granted; invoice payment authorized."
 
         self.client.update_workflow(

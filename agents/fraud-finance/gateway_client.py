@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import os
 import requests
 from typing import Dict, Any, Optional, List
@@ -81,7 +82,7 @@ class GatewayClient:
                 "findings": findings,
                 "riskScore": risk_score,
                 "history": history,
-                "updatedAt": "AUTO_TIMESTAMP"
+                "updatedAt": datetime.now(timezone.utc).isoformat()
             }
         }
         res = self.call_gateway(
@@ -103,7 +104,7 @@ class GatewayClient:
                 "involvedServiceAccounts": [self.sa_email, f"agentmesh-gateway@{PROJECT_ID}.iam.gserviceaccount.com"],
                 "currentStep": current_step,
                 "context": context,
-                "updatedAt": "AUTO_TIMESTAMP"
+                "updatedAt": datetime.now(timezone.utc).isoformat()
             }
         }
         res = self.call_gateway(

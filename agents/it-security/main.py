@@ -12,11 +12,11 @@ class AuditRequest(BaseModel):
     repo: str = "ssurekumar01111-hue/Northbridge-Retail-Co."
 
 @app.post("/audit")
-def audit_repo(req: AuditRequest):
+async def audit_repo(req: AuditRequest):
     with tracer.start_as_current_span("Audit Repository Security") as span:
         span.set_attribute("repo", req.repo)
         try:
-            res = agent.audit_repository(req.repo)
+            res = await agent.audit_repository(req.repo)
             span.set_attribute("riskScore", res.get("riskScore", 0.0))
             return res
         except Exception as e:
