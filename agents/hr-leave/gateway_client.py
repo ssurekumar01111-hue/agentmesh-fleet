@@ -55,7 +55,7 @@ class GatewayClient:
             "action": action,
             "payload": payload or {},
         }
-        res = requests.post(url, json=body, headers=self._headers(), timeout=30)
+        res = requests.post(url, json=body, headers=self._headers(), timeout=45)
         if res.status_code != 200:
             raise RuntimeError(f"Gateway call failed [{res.status_code}]: {res.text}")
         return res.json().get("data", {})
