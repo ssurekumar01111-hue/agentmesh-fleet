@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Phase 14 Item 3 Verification Test:
+Phase 14 Item 3 & Follow-up Verification Test:
 Tests Workflow Ownership Enforcement on Gateway:
  1. Uninvolved agent write attempt -> Denied (HTTP 403)
- 2. Involved agent write attempt -> Allowed (HTTP 200)
+ 2. Dashboard Control Plane Human Operator Approve write attempt -> Allowed (HTTP 200)
+ 3. Involved agent write attempt -> Allowed (HTTP 200)
 """
 
 import os
@@ -62,16 +63,45 @@ def test_workflow_ownership():
     assert audit_doc.exists, f"Audit log doc {audit_id} not found!"
     print(f"[+] PASS: Uninvolved agent write correctly DENIED! Audit Log ID: {audit_id}")
 
-    # 2. Involved Agent Write Attempt (fraud-finance updating its own workflow)
+    # 2. Dashboard Human Operator Write Attempt (agentmesh-dashboard approving workflow)
+    print(f"\n[*] Attempting write to '{target_wf_id}' as Dashboard Human Operator 'dashboard'...")
+    headers_dash = {
+        "Content-Type": "application/json",
+        "x-emulated-sa": f"agentmesh-dashboard@{PROJECT_ID}.iam.gserviceaccount.com"
+    }
+    wf_doc = db.collection("workflows").document(target_wf_id).get()
+    curr_data = wf_doc.to_dict() if wf_doc.exists else {}
+
+    payload_dash = {
+        "callerServiceAccount": f"agentmesh-dashboard@{PROJECT_ID}.iam.gserviceaccount.com",
+        "targetResource": "firestore:workflows",
+        "collectionName": "workflows",
+        "action": "write",
+        "payload": {
+            "docId": target_wf_id,
+            "data": {
+                **curr_data,
+                "status": "resumed",
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        }
+    }
+
+    res_dash = requests.post(f"{GATEWAY_URL}/v1/execute", json=payload_dash, headers=headers_dash)
+    print(f"[*] Dashboard Write Response Code: {res_dash.status_code}")
+    print(f"[*] Dashboard Write Body: {res_dash.text}")
+
+    res_dash_data = res_dash.json()
+    assert res_dash.status_code == 200, f"Expected 200 OK for dashboard write, got {res_dash.status_code}"
+    assert res_dash_data.get("status") == "allowed"
+    print(f"[+] PASS: Dashboard Control Plane Human Operator write successfully ALLOWED!")
+
+    # 3. Involved Agent Write Attempt (fraud-finance updating its own workflow)
     print(f"\n[*] Attempting write to '{target_wf_id}' as involved agent 'fraud-finance'...")
     headers_involved = {
         "Content-Type": "application/json",
         "x-emulated-sa": f"agentmesh-fraud-finance@{PROJECT_ID}.iam.gserviceaccount.com"
     }
-    
-    # Read current doc to keep context valid
-    wf_doc = db.collection("workflows").document(target_wf_id).get()
-    curr_data = wf_doc.to_dict() if wf_doc.exists else {}
 
     payload_involved = {
         "callerServiceAccount": f"agentmesh-fraud-finance@{PROJECT_ID}.iam.gserviceaccount.com",
@@ -82,6 +112,7 @@ def test_workflow_ownership():
             "docId": target_wf_id,
             "data": {
                 **curr_data,
+                "status": "waiting_approval",
                 "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")
             }
         }

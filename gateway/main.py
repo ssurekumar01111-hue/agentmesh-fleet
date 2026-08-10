@@ -421,7 +421,14 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                                 owner_agent = existing_data.get("agentId", "")
                                 assigned_agent = existing_data.get("assignedAgent", "")
 
+                                # The Control Plane Dashboard acts as the Human-in-the-Loop governance operator
+                                is_dashboard_operator = (
+                                    agent_id == "dashboard" or
+                                    sa_email == "agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com"
+                                )
+
                                 is_involved = (
+                                    is_dashboard_operator or
                                     agent_id in involved_sa or
                                     sa_email in involved_sa or
                                     agent_id in involved_agents or
