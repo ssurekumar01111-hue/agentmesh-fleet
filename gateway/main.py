@@ -365,7 +365,17 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 pipe_span.set_attribute("policyDecision", "denied")
                 pipe_span.set_attribute("armorFlags", str(armor_flags))
                 pipe_span.set_attribute("latency", latency)
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "status": "denied",
+                        "agentId": agent_id,
+                        "policyDecision": "denied",
+                        "policyReason": reason,
+                        "armorFlags": armor_flags,
+                        "auditLogId": log_id
+                    }
+                )
 
         # Stage 5 & 6: Tool Access & Forwarding to Target
         with tracer.start_as_current_span("Tool Access") as tool_span:
@@ -411,6 +421,27 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 armor_flags.extend(out_flags)
 
                 latency = (time.time() - start_time) * 1000
+
+                if out_blocked:
+                    reason = f"Guard Pipeline outbound tool output block flags triggered: {out_flags}"
+                    log_id = write_audit_log(agent_id, None, req.action, req_str, f"[BLOCKED_TOOL_OUTPUT: {out_flags}]", "blocked", reason, armor_flags, latency)
+
+                    pipe_span.set_attribute("policyDecision", "blocked")
+                    pipe_span.set_attribute("armorFlags", str(armor_flags))
+                    pipe_span.set_attribute("latency", latency)
+
+                    return JSONResponse(
+                        status_code=status.HTTP_200_OK,
+                        content={
+                            "status": "blocked",
+                            "agentId": agent_id,
+                            "policyDecision": "blocked",
+                            "policyReason": reason,
+                            "armorFlags": armor_flags,
+                            "auditLogId": log_id
+                        }
+                    )
+
                 log_id = write_audit_log(agent_id, None, req.action, req_str, str(clean_result), "allowed", None, armor_flags, latency)
 
                 pipe_span.set_attribute("policyDecision", "allowed")

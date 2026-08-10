@@ -1,7 +1,9 @@
 import re
 import time
+import os
 from typing import List, Dict, Any, Tuple
 from google.cloud import aiplatform
+import vertexai
 from vertexai.generative_models import GenerativeModel
 
 # Regex patterns for fast rule-based checks
@@ -32,13 +34,18 @@ class GuardPipeline:
     """
     def __init__(self, project_id: str = "agentmesh-fleet-2026"):
         self.project_id = project_id
+        self.location = os.getenv("VERTEX_AI_LOCATION", "asia-south1")
         self.vertex_initialized = False
+        self.use_llm = False
         try:
-            vertexai.init(project=project_id, location="us-central1")
-            self.model = GenerativeModel("gemini-1.5-flash")
+            vertexai.init(project=self.project_id, location=self.location)
+            self.model = GenerativeModel("gemini-2.5-flash")
             self.vertex_initialized = True
+            self.use_llm = True
+            print(f"[GuardPipeline] SUCCESS: Vertex AI initialized (project={self.project_id}, location={self.location}, model=gemini-2.5-flash, self.use_llm=True).")
         except Exception as e:
-            print(f"[GuardPipeline] Warning: Vertex AI init failed ({e}), falling back to regex armor.")
+            print(f"[GuardPipeline] LOUD WARNING: Vertex AI init failed ({e}). LLM guard path DISABLED (self.use_llm=False), falling back to regex armor!")
+            self.vertex_initialized = False
             self.use_llm = False
 
     def scan_content(self, content_str: str) -> Tuple[bool, List[str], str]:
@@ -79,7 +86,7 @@ class GuardPipeline:
                     f"TEXT:\n{content_str[:2000]}"
                 )
                 response = self.model.generate_content(prompt)
-                res_text = response.text.strip().upper() if response.text else "SAFE"
+                res_text = response.text.strip().upper() if response and response.text else "SAFE"
                 if "MALICIOUS" in res_text:
                     flags.append("prompt_injection_llm")
             except Exception as e:
@@ -87,8 +94,8 @@ class GuardPipeline:
 
         is_blocked = len(flags) > 0
         clean_content = content_str
-        if "secret_leakage" in flags or "pii_leakage" in flags:
-            # Redact secrets / PII from output if returning blocked summary
+        if "secret_leakage" in flags or "pii_leakage" in flags or "prompt_injection" in flags or "prompt_injection_llm" in flags:
             clean_content = "[REDACTED_CONTENT_BLOCKED_BY_GUARD_PIPELINE]"
 
         return is_blocked, flags, clean_content
+
