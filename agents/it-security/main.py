@@ -120,42 +120,30 @@ async def worker_audit(request: Request):
         span.set_attribute("repo", repo)
         span.set_attribute("workflowId", workflow_id)
 
-        # 4. IDEMPOTENCY GUARD: Check current workflow status in Firestore via Gateway
-        try:
-            existing_wf = agent.client.call_gateway(
-                target_resource="firestore:workflows",
-                collection_name="workflows",
-                action="read",
-                payload={"docId": workflow_id}
-            )
-            current_status = existing_wf.get("status") if existing_wf else None
-        except Exception as e:
-            print(f"[-] [Idempotency Guard] Note: Could not read existing workflow ({e})")
-            current_status = None
-
-        print(f"[*] [Idempotency Guard] Current status for '{workflow_id}' is '{current_status}'")
-
-        if current_status in ["running", "in_progress", "completed", "resumed"]:
-            print(f"[!] [Idempotency Guard] Skipping execution for '{workflow_id}' because status is already '{current_status}'.")
-            return {
-                "status": "skipped",
-                "reason": f"Workflow '{workflow_id}' already in status '{current_status}'",
-                "workflowId": workflow_id,
-                "repo": repo,
-                "currentStatus": current_status
-            }
-
-        # Mark workflow status="running"
-        agent.client.update_workflow(
+        # 4. ATOMIC IDEMPOTENCY GUARD: Claim workflow status in Firestore via Gateway transaction
+        claim_res = agent.client.claim_workflow(
             workflow_id=workflow_id,
-            status="running",
+            expected_status="queued",
+            new_status="running",
             current_step="scanning",
             context={
                 "repo": repo,
                 "startedAt": datetime.now(timezone.utc).isoformat()
             }
         )
-        print(f"[+] [/worker/audit] Marked workflow '{workflow_id}' as status='running'. Invoking audit_repository...")
+
+        if not claim_res.get("claimed", False):
+            current_st = claim_res.get("currentStatus", "unknown")
+            print(f"[!] [Idempotency Guard] Atomic claim failed for '{workflow_id}'. Current status is '{current_st}'. Skipping execution.")
+            return {
+                "status": "skipped",
+                "reason": f"Atomic claim failed: Workflow '{workflow_id}' already claimed by concurrent delivery (status: '{current_st}')",
+                "workflowId": workflow_id,
+                "repo": repo,
+                "currentStatus": current_st
+            }
+
+        print(f"[+] [/worker/audit] Atomically claimed workflow '{workflow_id}' with status='running'. Invoking audit_repository...")
 
         # Process audit using unchanged agent logic
         try:
