@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   IconCpu,
   IconGitBranch,
@@ -746,52 +746,105 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Agent Detail Modal/Card */}
+                {/* Agent Permissions Overlay Modal */}
                 {selectedAgent && (
-                  <div className="flat-card border-blue-200 bg-blue-50/20">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-[#0f172a]">
-                        Governance details: {selectedAgent.name || selectedAgent.docId}
-                      </h3>
-                      <button
-                        onClick={() => setSelectedAgent(null)}
-                        className="text-xs text-[#64748b] hover:text-[#0f172a]"
-                      >
-                        Close
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div>
-                        <span className="font-medium text-[#475569] block mb-1">
-                          Allowed Firestore collections (least privilege):
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(selectedAgent.allowedCollections || []).map((col: string, idx: number) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-white border border-[#cbd5e1] rounded text-[#334155] font-mono text-[11px]"
-                            >
-                              {col}
-                            </span>
-                          ))}
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ backgroundColor: "rgba(15,23,42,0.55)" }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedAgent(null); }}
+                  >
+                    <div
+                      className="bg-white rounded-2xl shadow-2xl border border-[#e2e8f0] w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+                      style={{ animation: "slideUp 0.2s ease-out" }}
+                    >
+                      {/* Modal Header */}
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-[#e2e8f0] sticky top-0 bg-white rounded-t-2xl">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#0f172a]">
+                            Governance permissions: {selectedAgent.agentName || selectedAgent.name || selectedAgent.docId}
+                          </h3>
+                          <p className="text-[11px] text-[#64748b] mt-0.5 font-mono">{selectedAgent.serviceAccountEmail}</p>
                         </div>
+                        <button
+                          onClick={() => setSelectedAgent(null)}
+                          className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-[#64748b] hover:text-[#0f172a] transition text-lg leading-none"
+                        >
+                          ✕
+                        </button>
                       </div>
 
-                      <div>
-                        <span className="font-medium text-[#475569] block mb-1">
-                          Allowed Gateway tools:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(selectedAgent.allowedTools || []).map((tool: string, idx: number) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-white border border-[#cbd5e1] rounded text-[#334155] font-mono text-[11px]"
-                            >
-                              {tool}
-                            </span>
-                          ))}
+                      {/* Modal Body */}
+                      <div className="px-6 py-5 space-y-5">
+                        {/* Agent meta row */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Department</span>
+                            <span className="text-xs font-medium text-[#0f172a]">{selectedAgent.department || "Operations"}</span>
+                          </div>
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Version</span>
+                            <span className="text-xs font-medium text-[#0f172a]">v{selectedAgent.version || "1.0"}</span>
+                          </div>
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Status</span>
+                            <span className={`pill-badge text-[11px] ${selectedAgent.status === "active" ? "badge-green" : "badge-gray"}`}>{selectedAgent.status || "pending"}</span>
+                          </div>
                         </div>
+
+                        {/* Allowed Firestore Collections */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded bg-[#dbeafe] flex items-center justify-center">
+                              <IconShield size={12} className="text-[#1d4ed8]" />
+                            </div>
+                            <span className="text-xs font-semibold text-[#0f172a]">Allowed Firestore collections (least-privilege)</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {(selectedAgent.allowedCollections || []).length > 0 ? (
+                              (selectedAgent.allowedCollections || []).map((col: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2.5 py-1 bg-[#eff6ff] border border-[#bfdbfe] rounded-lg text-[#1e40af] font-mono text-[11px] font-medium"
+                                >
+                                  {col}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-[#94a3b8] italic">No collections defined in registry document</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Allowed Tools */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded bg-[#f0fdf4] flex items-center justify-center">
+                              <IconCheck size={12} className="text-[#15803d]" />
+                            </div>
+                            <span className="text-xs font-semibold text-[#0f172a]">Allowed Gateway tools</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {(selectedAgent.allowedTools || []).length > 0 ? (
+                              (selectedAgent.allowedTools || []).map((tool: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2.5 py-1 bg-[#f0fdf4] border border-[#bbf7d0] rounded-lg text-[#166534] font-mono text-[11px] font-medium"
+                                >
+                                  {tool}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-[#94a3b8] italic">No tools defined in registry document</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Owner */}
+                        {selectedAgent.owner && (
+                          <div className="pt-3 border-t border-[#f1f5f9] text-xs text-[#64748b]">
+                            <span className="font-medium text-[#475569]">Owner:</span> {selectedAgent.owner}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1025,105 +1078,196 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Workflow Detail / Approval Card */}
+                {/* Workflow Detail Overlay Modal */}
                 {selectedWorkflow && (
-                  <div className="flat-card border-amber-300 bg-white">
-                    <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-3 mb-4">
-                      <div>
-                        <h3 className="text-sm font-semibold text-[#0f172a]">
-                          Workflow detail & gate review: {selectedWorkflow.docId || selectedWorkflow.workflowId || "Data unavailable"}
-                        </h3>
-                        <p className="text-xs text-[#64748b]">
-                          {selectedWorkflow.context?.invoiceId
-                            ? `Real findings pulled from Firestore memory collection (\`memory/case-${selectedWorkflow.context.invoiceId}\`)`
-                            : "Firestore memory collection status"}
-                        </p>
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ backgroundColor: "rgba(15,23,42,0.55)" }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedWorkflow(null); }}
+                  >
+                    <div
+                      className="bg-white rounded-2xl shadow-2xl border border-[#e2e8f0] w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+                      style={{ animation: "slideUp 0.2s ease-out" }}
+                    >
+                      {/* Modal Header */}
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-[#e2e8f0] sticky top-0 bg-white rounded-t-2xl">
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <h3 className="text-sm font-semibold text-[#0f172a]">
+                              Workflow: {selectedWorkflow.docId || selectedWorkflow.workflowId || "Unknown"}
+                            </h3>
+                            <span className={`pill-badge text-[11px] ${
+                              selectedWorkflow.status === "completed" ? "badge-green"
+                              : selectedWorkflow.status === "waiting_approval" ? "" 
+                              : selectedWorkflow.status === "failed" ? "badge-red"
+                              : "badge-gray"
+                            }${ selectedWorkflow.status === "waiting_approval" ? " bg-amber-50 text-amber-800 border border-amber-300" : "" }`}>
+                              {selectedWorkflow.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#64748b]">
+                            {selectedWorkflow.context?.invoiceId
+                              ? `Firestore memory: memory/case-${selectedWorkflow.context.invoiceId}`
+                              : `Initiator: ${selectedWorkflow.initiatingAgentId || "fraud-finance"}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setSelectedWorkflow(null)}
+                          className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-[#64748b] hover:text-[#0f172a] transition text-lg leading-none"
+                        >
+                          ✕
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setSelectedWorkflow(null)}
-                        className="text-xs text-[#64748b] hover:text-[#0f172a]"
-                      >
-                        Close
-                      </button>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="p-3 bg-slate-50 rounded-lg border border-[#e2e8f0]">
-                        <span className="text-[11px] text-[#64748b] block mb-1">Target invoice ID</span>
-                        <span className="text-xs font-semibold text-[#0f172a]">
-                          {selectedWorkflow.context?.invoiceId || "Data unavailable"}
-                        </span>
-                      </div>
-                      <div className="p-3 bg-slate-50 rounded-lg border border-[#e2e8f0]">
-                        <span className="text-[11px] text-[#64748b] block mb-1">Invoice amount</span>
-                        <span className="text-xs font-semibold text-[#0f172a]">
-                          {selectedWorkflow.context?.amount != null
-                            ? `$${Number(selectedWorkflow.context.amount).toLocaleString()}`
-                            : "Data unavailable"}
-                        </span>
-                      </div>
-                      <div className={`p-3 rounded-lg border ${selectedWorkflow.context?.riskScore != null ? 'bg-[#fee2e2] border-red-200' : 'bg-slate-50 border-[#e2e8f0]'}`}>
-                        <span className={`text-[11px] block mb-1 ${selectedWorkflow.context?.riskScore != null ? 'text-[#991b1b]' : 'text-[#64748b]'}`}>Fraud risk score</span>
-                        <span className={`text-xs font-semibold ${selectedWorkflow.context?.riskScore != null ? 'text-[#991b1b]' : 'text-[#64748b]'}`}>
-                          {selectedWorkflow.context?.riskScore != null
-                            ? `${(Number(selectedWorkflow.context.riskScore) * 100).toFixed(0)}% (HIGH RISK)`
-                            : "Data unavailable"}
-                        </span>
-                      </div>
-                    </div>
+                      {/* Modal Body */}
+                      <div className="px-6 py-5 space-y-5">
 
-                    {/* Agent Findings from Memory */}
-                    <div className="mb-4">
-                      <h4 className="text-xs font-medium text-[#475569] mb-1.5">
-                        Fraud Agent summary & memory findings:
-                      </h4>
-                      <div className="p-3 bg-slate-50 rounded-lg border border-[#e2e8f0] text-xs text-[#334155] space-y-1.5">
-                        <p className="font-medium text-[#0f172a]">
-                          {memoryCase?.summary ||
-                            selectedWorkflow.context?.summary ||
-                            "Data unavailable"}
-                        </p>
-                        {memoryCase?.findings && (
-                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-[#475569]">
-                            {memoryCase.findings.map((f: string, idx: number) => (
-                              <li key={idx}>{f}</li>
-                            ))}
-                          </ul>
+                        {/* Status stepper */}
+                        <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                          <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-2">Execution Progress</span>
+                          {renderWorkflowStepper(selectedWorkflow.status)}
+                        </div>
+
+                        {/* Key metrics grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Invoice ID</span>
+                            <span className="text-xs font-medium text-[#0f172a] font-mono">{selectedWorkflow.context?.invoiceId || "—"}</span>
+                          </div>
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Amount</span>
+                            <span className="text-xs font-semibold text-[#0f172a]">
+                              {selectedWorkflow.context?.amount != null
+                                ? `$${Number(selectedWorkflow.context.amount).toLocaleString()}`
+                                : selectedWorkflow.context?.invoiceAmount != null
+                                ? `$${Number(selectedWorkflow.context.invoiceAmount).toLocaleString()}`
+                                : "—"}
+                            </span>
+                          </div>
+                          <div className={`p-3 rounded-xl border ${
+                            selectedWorkflow.context?.riskScore != null
+                              ? "bg-red-50 border-red-200"
+                              : "bg-slate-50 border-[#e2e8f0]"
+                          }`}>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${
+                              selectedWorkflow.context?.riskScore != null ? "text-red-700" : "text-[#64748b]"
+                            }`}>Risk Score</span>
+                            <span className={`text-sm font-bold ${
+                              selectedWorkflow.context?.riskScore != null ? "text-red-800" : "text-[#94a3b8]"
+                            }`}>
+                              {selectedWorkflow.context?.riskScore != null
+                                ? `${(Number(selectedWorkflow.context.riskScore) * 100).toFixed(0)}%`
+                                : "—"}
+                            </span>
+                            {selectedWorkflow.context?.riskScore != null && (
+                              <span className="text-[10px] text-red-600 font-semibold block">HIGH RISK</span>
+                            )}
+                          </div>
+                          <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                            <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Current Step</span>
+                            <span className="text-[11px] font-medium text-[#0f172a] font-mono leading-tight">{selectedWorkflow.currentStep || "—"}</span>
+                          </div>
+                        </div>
+
+                        {/* Vendor + Workflow type row */}
+                        {(selectedWorkflow.context?.vendorName || selectedWorkflow.context?.vendor || selectedWorkflow.type) && (
+                          <div className="grid grid-cols-2 gap-3">
+                            {(selectedWorkflow.context?.vendorName || selectedWorkflow.context?.vendor) && (
+                              <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                                <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Vendor</span>
+                                <span className="text-xs font-medium text-[#0f172a]">{selectedWorkflow.context?.vendorName || selectedWorkflow.context?.vendor}</span>
+                              </div>
+                            )}
+                            {selectedWorkflow.type && (
+                              <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                                <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Workflow Type</span>
+                                <span className="text-xs font-medium text-[#0f172a]">{selectedWorkflow.type}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Summary & Findings */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <IconAlertTriangle size={14} className="text-amber-600" />
+                            <span className="text-xs font-semibold text-[#0f172a]">Agent findings & investigation summary</span>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-[#e2e8f0] text-xs text-[#334155] space-y-2">
+                            <p className="font-medium text-[#0f172a] leading-relaxed">
+                              {memoryCase?.summary ||
+                                selectedWorkflow.context?.summary ||
+                                selectedWorkflow.context?.agentSummary ||
+                                "No summary available yet — agent may still be processing."}
+                            </p>
+                            {memoryCase?.findings && memoryCase.findings.length > 0 && (
+                              <div>
+                                <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1.5">Specific Findings:</span>
+                                <ul className="space-y-1">
+                                  {memoryCase.findings.map((f: string, idx: number) => (
+                                    <li key={idx} className="flex items-start gap-2">
+                                      <span className="mt-0.5 w-4 h-4 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-[9px] font-bold text-amber-700">{idx + 1}</span>
+                                      <span className="text-[#475569]">{f}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {!memoryCase?.findings && selectedWorkflow.context?.invoiceId && (
+                              <p className="text-[11px] text-[#94a3b8] italic">Memory case: case-{selectedWorkflow.context.invoiceId} — loading findings...</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Initiating agent + timestamps */}
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          {selectedWorkflow.initiatingAgentId && (
+                            <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                              <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Initiating Agent</span>
+                              <span className="font-mono text-[#0f172a]">{selectedWorkflow.initiatingAgentId}</span>
+                            </div>
+                          )}
+                          {(selectedWorkflow.createdAt || selectedWorkflow.updatedAt) && (
+                            <div className="p-3 bg-slate-50 rounded-xl border border-[#e2e8f0]">
+                              <span className="text-[10px] font-semibold text-[#64748b] uppercase tracking-wider block mb-1">Last Updated</span>
+                              <span className="font-mono text-[#0f172a] text-[11px]">{selectedWorkflow.updatedAt || selectedWorkflow.createdAt}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {actionMessage && (
+                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
+                            ✓ {actionMessage}
+                          </div>
+                        )}
+
+                        {/* Approve / Reject Buttons (only if waiting_approval) */}
+                        {selectedWorkflow.status === "waiting_approval" ? (
+                          <div className="flex items-center gap-3 justify-end pt-2 border-t border-[#e2e8f0]">
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => handleApprovalAction("failed")}
+                              className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
+                            >
+                              <IconX size={14} />
+                              Reject workflow
+                            </button>
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => handleApprovalAction("resumed")}
+                              className="flex items-center gap-1.5 text-xs font-medium text-white bg-emerald-600 px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
+                            >
+                              <IconCheck size={14} />
+                              {actionLoading ? "Updating Firestore..." : "Approve & resume workflow"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[#64748b] text-right pt-3 border-t border-[#e2e8f0]">
+                            Status: <strong>{selectedWorkflow.status}</strong> — no human gate action required at this stage.
+                          </div>
                         )}
                       </div>
                     </div>
-
-                    {actionMessage && (
-                      <div className="mb-4 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-                        {actionMessage}
-                      </div>
-                    )}
-
-                    {/* Approve / Reject Buttons (only if waiting_approval) */}
-                    {selectedWorkflow.status === "waiting_approval" ? (
-                      <div className="flex items-center gap-3 justify-end pt-2 border-t border-[#e2e8f0]">
-                        <button
-                          disabled={actionLoading}
-                          onClick={() => handleApprovalAction("failed")}
-                          className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
-                        >
-                          <IconX size={14} />
-                          Reject workflow
-                        </button>
-                        <button
-                          disabled={actionLoading}
-                          onClick={() => handleApprovalAction("resumed")}
-                          className="flex items-center gap-1.5 text-xs font-medium text-white bg-emerald-600 px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
-                        >
-                          <IconCheck size={14} />
-                          {actionLoading ? "Updating Firestore..." : "Approve & resume workflow"}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-[#64748b] text-right pt-2 border-t border-[#e2e8f0]">
-                        Current workflow status is <strong>{selectedWorkflow.status}</strong>. No human gate action required.
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
