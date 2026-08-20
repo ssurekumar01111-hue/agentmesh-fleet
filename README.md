@@ -107,3 +107,8 @@ Each suite posts a trigger to the agent's Cloud Run endpoint (expects HTTP 202 +
 
 ## Architecture & Design Documentation
 Detailed system architecture diagrams, zero-trust pipeline flows, and OpenTelemetry trace specifications are available in [`docs/architecture.md`](docs/architecture.md).
+
+---
+
+## License
+Apache 2.0 — see [LICENSE](LICENSE)
