@@ -12,6 +12,8 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 ## Live System URLs
 
 > **Agent and Gateway URLs are backend APIs — visiting them directly now shows service status. Start with the Dashboard for the live interactive demo.**
+>
+> **Agent and Gateway URLs require Google Cloud IAM authentication — visiting them directly without credentials will show a 403 Forbidden page. This is intentional zero-trust access control, not a broken link. See [docs/iam-roles.md](docs/iam-roles.md) for the security model, or use the Dashboard for the live interactive demo.**
 
 | Service | URL |
 |---------|-----|
