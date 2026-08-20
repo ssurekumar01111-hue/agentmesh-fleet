@@ -35,6 +35,9 @@ export default function Dashboard() {
   const [memoryCase, setMemoryCase] = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  // Approval-resume polling state — tracks the live "completing..." state in the modal
+  const [approvalPolling, setApprovalPolling] = useState(false);
+  const [approvalPollStatus, setApprovalPollStatus] = useState<string | null>(null);
 
   // Policy Playground state
   const [pgSelectedSa, setPgSelectedSa] = useState<string>("");
@@ -160,6 +163,8 @@ export default function Dashboard() {
     setSelectedWorkflow(wf);
     setMemoryCase(null);
     setActionMessage(null);
+    setApprovalPolling(false);
+    setApprovalPollStatus(null);
 
     const invoiceId = wf.context?.invoiceId;
     if (invoiceId) {
@@ -180,6 +185,8 @@ export default function Dashboard() {
     if (!selectedWorkflow) return;
     setActionLoading(true);
     setActionMessage(null);
+    setApprovalPolling(false);
+    setApprovalPollStatus(null);
 
     const wfId = selectedWorkflow.docId || selectedWorkflow.workflowId;
     if (!wfId) {
@@ -188,6 +195,7 @@ export default function Dashboard() {
       return;
     }
 
+    // ── STEP 1: Write status to Firestore via Gateway ──────────────────────
     const updateRes = await fetchGatewayData(
       "firestore:workflows",
       "workflows",
@@ -203,17 +211,98 @@ export default function Dashboard() {
       }
     );
 
-    if (updateRes && updateRes.status === "allowed") {
-      setActionMessage(
-        newStatus === "resumed"
-          ? "Workflow approved and set to 'resumed' in Firestore! Fraud agent can now complete it."
-          : "Workflow rejected and marked 'failed' in Firestore."
-      );
-      await loadData();
-    } else {
+    if (!updateRes || updateRes.status !== "allowed") {
       setActionMessage("Failed to update workflow state via Gateway.");
+      setActionLoading(false);
+      return;
     }
-    setActionLoading(false);
+
+    if (newStatus === "failed") {
+      // Rejection — no agent call needed, just refresh and show final state
+      setActionMessage("Workflow rejected and marked 'failed' in Firestore.");
+      // Refresh modal to show updated status
+      const freshWf = await fetchGatewayData("firestore:workflows", "workflows", "read", { docId: wfId });
+      if (freshWf?.data) setSelectedWorkflow(freshWf.data);
+      await loadData();
+      setActionLoading(false);
+      return;
+    }
+
+    // ── STEP 2: Call agent's /resume endpoint ───────────────────────────────
+    setActionLoading(false);  // release Approve button
+    setApprovalPolling(true);
+    setApprovalPollStatus("resuming");
+    setActionMessage("Resuming... calling agent to complete workflow.");
+
+    try {
+      const resumeRes = await fetch("/api/resume-workflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflowId: wfId,
+          agentId: selectedWorkflow.agentId || selectedWorkflow.initiatingAgentId,
+          workflowType: selectedWorkflow.type,
+          initiatingAgentId: selectedWorkflow.initiatingAgentId,
+        }),
+      });
+      const resumeData = await resumeRes.json();
+
+      if (!resumeRes.ok) {
+        setActionMessage(`⚠ Agent /resume call failed (HTTP ${resumeRes.status}): ${resumeData.detail || "Unknown error"}. Workflow is in 'resumed' state — agent may pick it up on next cycle.`);
+        // Still poll — agent may complete it asynchronously
+      }
+    } catch (err: any) {
+      setActionMessage(`⚠ Network error calling agent /resume: ${err.message}. Workflow is in 'resumed' state — polling for completion.`);
+    }
+
+    // ── STEP 3: Poll Firestore until terminal state (completed | failed) ────
+    const TERMINAL = ["completed", "failed"];
+    const MAX_WAIT_MS = 120_000; // 2 minutes
+    const POLL_INTERVAL_MS = 2500;
+    let elapsed = 0;
+    let finalStatus = "resuming";
+
+    while (elapsed < MAX_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      elapsed += POLL_INTERVAL_MS;
+
+      try {
+        const wfRes = await fetchGatewayData(
+          "firestore:workflows",
+          "workflows",
+          "read",
+          { docId: wfId }
+        );
+        const freshWf = wfRes?.data || wfRes || null;
+        const currentStatus = freshWf?.status;
+
+        if (currentStatus) {
+          finalStatus = currentStatus;
+          setApprovalPollStatus(currentStatus);
+          // Always update the modal to reflect freshest Firestore state
+          if (freshWf) setSelectedWorkflow(freshWf);
+        }
+
+        if (currentStatus && TERMINAL.includes(currentStatus)) {
+          // Reached terminal — update lists and show final state
+          await loadData();
+          setActionMessage(
+            currentStatus === "completed"
+              ? `✓ Workflow completed successfully! Agent finished in ${Math.round(elapsed / 1000)}s.`
+              : `✗ Workflow ended with status: ${currentStatus}.`
+          );
+          break;
+        }
+      } catch (pollErr) {
+        console.warn("[ApprovalPoll] Error polling workflow:", pollErr);
+      }
+    }
+
+    if (!TERMINAL.includes(finalStatus)) {
+      setActionMessage("⏱ Polling timed out — workflow is still processing. Refresh the page to see the latest status.");
+    }
+
+    setApprovalPolling(false);
   };
 
   // Policy Playground Execution
@@ -1235,17 +1324,40 @@ export default function Dashboard() {
                           )}
                         </div>
 
-                        {actionMessage && (
-                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-                            ✓ {actionMessage}
+                        {/* Action message — adapts between idle, resuming, and terminal states */}
+                        {actionMessage && !approvalPolling && (
+                          <div className={`p-3 rounded-xl text-xs font-medium border ${
+                            actionMessage.startsWith("⚠") || actionMessage.startsWith("⏱") || actionMessage.startsWith("✗")
+                              ? "bg-amber-50 border-amber-200 text-amber-800"
+                              : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                          }`}>
+                            {actionMessage}
                           </div>
                         )}
 
-                        {/* Approve / Reject Buttons (only if waiting_approval) */}
-                        {selectedWorkflow.status === "waiting_approval" ? (
+                        {/* Live "Resuming..." progress indicator */}
+                        {approvalPolling && (
+                          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium space-y-1">
+                            <div className="flex items-center gap-2">
+                              <svg className="animate-spin h-3.5 w-3.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              </svg>
+                              <span className="font-semibold">
+                                {approvalPollStatus === "resuming" ? "Calling agent /resume…" :
+                                 approvalPollStatus === "resumed" ? "Agent acknowledged — waiting for completion…" :
+                                 `Status: ${approvalPollStatus} — polling…`}
+                              </span>
+                            </div>
+                            {actionMessage && <p className="text-[11px] text-blue-700 mt-1">{actionMessage}</p>}
+                          </div>
+                        )}
+
+                        {/* Approve / Reject Buttons (only if waiting_approval and not already polling) */}
+                        {selectedWorkflow.status === "waiting_approval" && !approvalPolling ? (
                           <div className="flex items-center gap-3 justify-end pt-2 border-t border-[#e2e8f0]">
                             <button
-                              disabled={actionLoading}
+                              disabled={actionLoading || approvalPolling}
                               onClick={() => handleApprovalAction("failed")}
                               className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
                             >
@@ -1253,19 +1365,20 @@ export default function Dashboard() {
                               Reject workflow
                             </button>
                             <button
-                              disabled={actionLoading}
+                              disabled={actionLoading || approvalPolling}
                               onClick={() => handleApprovalAction("resumed")}
                               className="flex items-center gap-1.5 text-xs font-medium text-white bg-emerald-600 px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
                             >
                               <IconCheck size={14} />
-                              {actionLoading ? "Updating Firestore..." : "Approve & resume workflow"}
+                              {actionLoading ? "Writing to Firestore..." : "Approve & resume workflow"}
                             </button>
                           </div>
-                        ) : (
+                        ) : selectedWorkflow.status !== "waiting_approval" && !approvalPolling ? (
                           <div className="text-xs text-[#64748b] text-right pt-3 border-t border-[#e2e8f0]">
                             Status: <strong>{selectedWorkflow.status}</strong> — no human gate action required at this stage.
                           </div>
-                        )}
+                        ) : null}
+
                       </div>
                     </div>
                   </div>

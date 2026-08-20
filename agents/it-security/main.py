@@ -164,6 +164,50 @@ async def worker_audit(request: Request):
             print(f"[-] [/worker/audit] Execution failed: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+class ResumeRequest(BaseModel):
+    workflowId: str
+
+@app.post("/resume")
+def resume_workflow(req: ResumeRequest):
+    """Resume a workflow that was paused at human_approval_gate."""
+    with tracer.start_as_current_span("Resume Workflow Transition") as span:
+        span.set_attribute("workflowId", req.workflowId)
+        try:
+            # Read current workflow state
+            wf = agent.client.call_gateway(
+                target_resource="firestore:workflows",
+                collection_name="workflows",
+                action="read",
+                payload={"docId": req.workflowId}
+            )
+            if not wf:
+                raise HTTPException(status_code=404, detail=f"Workflow '{req.workflowId}' not found.")
+
+            current_status = wf.get("status")
+            if current_status != "resumed":
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Workflow '{req.workflowId}' status is '{current_status}' (expected 'resumed')."
+                )
+
+            # Mark as completed
+            context = wf.get("context", {})
+            context["resumedAt"] = datetime.now(timezone.utc).isoformat()
+            context["finalResolution"] = "Human approval granted; security audit authorized."
+            agent.client.update_workflow(
+                workflow_id=req.workflowId,
+                status="completed",
+                current_step="review_complete",
+                context=context
+            )
+            span.set_attribute("workflowStatus", "completed")
+            return {"workflowId": req.workflowId, "status": "completed", "currentStep": "review_complete"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            span.record_exception(e)
+            raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agentmesh-it-security"}
