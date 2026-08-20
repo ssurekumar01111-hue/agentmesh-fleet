@@ -27,6 +27,15 @@ topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 class ExpenseReviewRequest(BaseModel):
     expenseId: str = "exp-2026-001"
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-expense-approval",
+        "status": "ok",
+        "description": "AgentMesh Expense Approval Agent — Reviews employee expense reports against Northbridge Retail Co. policy via Gemini reasoning.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agentmesh-expense-approval"}

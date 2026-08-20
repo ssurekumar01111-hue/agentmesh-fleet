@@ -23,6 +23,15 @@ topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 class WorkflowReviewRequest(BaseModel):
     workflowId: str = "wf-inv-2026-007"
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-compliance",
+        "status": "ok",
+        "description": "AgentMesh Compliance Agent — Runs cross-department policy audits and zero-trust access denial reviews for Northbridge Retail Co.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "agentmesh-compliance"}

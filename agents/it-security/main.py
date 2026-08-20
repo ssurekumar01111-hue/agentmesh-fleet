@@ -23,6 +23,15 @@ topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 class AuditRequest(BaseModel):
     repo: str = "ssurekumar01111-hue/Northbridge-Retail-Co."
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-it-security",
+        "status": "ok",
+        "description": "AgentMesh IT & Security Agent — Monitors GitHub repositories for security anomalies and triages incidents for Northbridge Retail Co.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.post("/audit", status_code=status.HTTP_202_ACCEPTED)
 async def audit_repo(req: AuditRequest):
     with tracer.start_as_current_span("Audit Repository Security (Async Queue)") as span:

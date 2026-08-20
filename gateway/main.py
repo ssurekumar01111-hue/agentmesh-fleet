@@ -122,6 +122,15 @@ def verify_token(authorization: Optional[str] = Header(None), x_emulated_sa: Opt
                 detail=f"Invalid OIDC token: {str(e)}"
             )
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-gateway",
+        "status": "ok",
+        "description": "AgentMesh Gateway — Zero-Trust Control Plane for the AgentMesh fleet. Enforces a 6-stage pipeline: Auth → Identity → Policy → Threat Shield → Tool Access → Audit.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.post("/v1/simulate-policy")
 async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(verify_token)):
     start_time = time.time()

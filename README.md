@@ -11,9 +11,11 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 
 ## Live System URLs
 
+> **Agent and Gateway URLs are backend APIs — visiting them directly now shows service status. Start with the Dashboard for the live interactive demo.**
+
 | Service | URL |
 |---------|-----|
-| **Control Plane Web Dashboard** | https://agentmesh-dashboard-138003672216.asia-south1.run.app |
+| 🟢 **Control Plane Web Dashboard** ← **Start here** | **[https://agentmesh-dashboard-138003672216.asia-south1.run.app](https://agentmesh-dashboard-138003672216.asia-south1.run.app)** |
 | **AgentMesh Gateway** | https://agentmesh-gateway-138003672216.asia-south1.run.app |
 | **Fraud & Finance Agent** | https://agentmesh-fraud-finance-138003672216.asia-south1.run.app |
 | **IT & Security Agent** | https://agentmesh-it-security-138003672216.asia-south1.run.app |

@@ -27,6 +27,15 @@ topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 class ContractReviewRequest(BaseModel):
     contractId: str = "ctr-2026-001"
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-legal-contract",
+        "status": "ok",
+        "description": "AgentMesh Legal Contract & NDA Reviewer Agent — Reviews vendor agreements, NDAs, and MSAs against Northbridge Retail Co. legal policy via Gemini reasoning.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agentmesh-legal-contract"}

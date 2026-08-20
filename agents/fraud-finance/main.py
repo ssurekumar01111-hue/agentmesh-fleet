@@ -26,6 +26,15 @@ class InvestigationRequest(BaseModel):
 class ResumeRequest(BaseModel):
     workflowId: str
 
+@app.get("/")
+def root():
+    return {
+        "service": "agentmesh-fraud-finance",
+        "status": "ok",
+        "description": "AgentMesh Fraud & Finance Agent — Investigates invoice anomalies and financial fraud patterns for Northbridge Retail Co.",
+        "note": "This is a backend API service, not a browsable UI. Try /health for a status check, or visit the AgentMesh Dashboard for the live control plane: https://agentmesh-dashboard-138003672216.asia-south1.run.app"
+    }
+
 @app.post("/investigate", status_code=status.HTTP_202_ACCEPTED)
 async def investigate_invoice(req: InvestigationRequest):
     with tracer.start_as_current_span("Investigate Invoice Workflow (Async Queue)") as span:
