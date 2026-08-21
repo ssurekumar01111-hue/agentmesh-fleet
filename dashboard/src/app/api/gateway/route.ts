@@ -8,27 +8,34 @@ const auth = new GoogleAuth();
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { targetResource, collectionName, action, payload, simulate, targetAgentSa } = body;
+    const { targetResource, collectionName, action, payload, simulate, targetAgentSa, simulateScan, content } = body;
 
     // Derived collection name if not passed directly
     const derivedCollection = collectionName || (targetResource && targetResource.includes(":") ? targetResource.split(":")[1] : targetResource) || "";
 
-    const endpoint = simulate ? `${GATEWAY_URL}/v1/simulate-policy` : `${GATEWAY_URL}/v1/execute`;
+    let endpoint = `${GATEWAY_URL}/v1/execute`;
+    let requestBody: any = {
+      callerServiceAccount: DASHBOARD_SA,
+      targetResource,
+      collectionName: derivedCollection,
+      action: action || "read",
+      payload: payload || {},
+    };
 
-    const requestBody = simulate
-      ? {
-          targetAgentSa: targetAgentSa || payload?.targetAgentSa,
-          targetResource,
-          collectionName: derivedCollection,
-          action: action || "read",
-        }
-      : {
-          callerServiceAccount: DASHBOARD_SA,
-          targetResource,
-          collectionName: derivedCollection,
-          action: action || "read",
-          payload: payload || {},
-        };
+    if (simulateScan || action === "simulate_scan") {
+      endpoint = `${GATEWAY_URL}/v1/simulate-scan`;
+      requestBody = {
+        content: content !== undefined ? content : (payload?.content || ""),
+      };
+    } else if (simulate) {
+      endpoint = `${GATEWAY_URL}/v1/simulate-policy`;
+      requestBody = {
+        targetAgentSa: targetAgentSa || payload?.targetAgentSa,
+        targetResource,
+        collectionName: derivedCollection,
+        action: action || "read",
+      };
+    }
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

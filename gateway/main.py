@@ -46,6 +46,9 @@ class PolicyCheckRequest(BaseModel):
     collectionName: str       # e.g. "sandbox_employees"
     action: str = "read"
 
+class ScanSimulationRequest(BaseModel):
+    content: str
+
 def write_audit_log(
     agent_id: str,
     workflow_id: Optional[str],
@@ -249,6 +252,65 @@ async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(v
             "policyDecision": "allowed",
             "policyReason": reason,
             "auditLogId": log_id
+        }
+
+@app.post("/v1/simulate-scan")
+async def simulate_scan(req: ScanSimulationRequest, caller_email: str = Depends(verify_token)):
+    start_time = time.time()
+    content_str = req.content or ""
+
+    with tracer.start_as_current_span("Threat Shield Simulation Pipeline") as sim_span:
+        sim_span.set_attribute("callerServiceAccount", caller_email)
+        sim_span.set_attribute("contentLength", len(content_str))
+
+        # Lookup caller identity in registry if available
+        agent_id = "dashboard"
+        try:
+            registry_query = db.collection("agent_registry").where("serviceAccountEmail", "==", caller_email).limit(1).stream()
+            registry_docs = list(registry_query)
+            if registry_docs:
+                agent_id = registry_docs[0].id
+        except Exception:
+            pass
+
+        sim_span.set_attribute("agentId", agent_id)
+
+        # Call REAL Guard Pipeline's scan_content()
+        is_blocked, flags, clean_content = armor.scan_content(content_str)
+        latency = (time.time() - start_time) * 1000
+
+        sim_span.set_attribute("isBlocked", is_blocked)
+        sim_span.set_attribute("armorFlags", str(flags))
+        sim_span.set_attribute("latency", latency)
+
+        policy_decision = "BLOCKED_BY_ARMOR" if is_blocked else "ALLOWED"
+        policy_reason = f"Threat Shield scan triggered flags: {flags}" if is_blocked else "Threat Shield scan passed: Content is safe."
+
+        log_id = write_audit_log(
+            agent_id=agent_id,
+            workflow_id=None,
+            action="simulate_scan",
+            request_summary=f"[THREAT_SHIELD_SIMULATION] {content_str[:300]}",
+            response_summary=f"Blocked: {is_blocked}, Flags: {flags}",
+            policy_decision=policy_decision,
+            policy_reason=policy_reason,
+            armor_flags=flags,
+            latency_ms=latency,
+            simulated=True
+        )
+
+        return {
+            "status": "blocked" if is_blocked else "clean",
+            "simulated": True,
+            "is_blocked": is_blocked,
+            "flags": flags,
+            "cleanContent": clean_content,
+            "policyDecision": policy_decision,
+            "policyReason": policy_reason,
+            "auditLogId": log_id,
+            "agentId": agent_id,
+            "callerServiceAccount": caller_email,
+            "latencyMs": round(latency, 2)
         }
 
 @app.post("/v1/execute")
