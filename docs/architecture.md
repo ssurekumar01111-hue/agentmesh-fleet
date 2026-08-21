@@ -18,12 +18,13 @@ flowchart TD
         subgraph Pipeline["6-Stage Pipeline"]
             S1["1. Authentication — OIDC token verification"]
             S2["2. Identity Check — agent_registry lookup, active status"]
-            S3["3. Policy Check — allowedCollections + deny rules + workflow ownership + atomic claim"]
-            S4["4. Threat Shield — regex + Gemini 3.5 Flash classifier, inbound & outbound"]
+            S3["3. Policy & State — allowedCollections + deny rules + workflow ownership"]
+            S4["4. Threat Shield — inbound/outbound prompt-injection, tool-poisoning, PII & secret-leak detection"]
             S5["5. Tool Access — Firestore / GitHub, via GatewayClient only"]
-            S6["6. Audit Log — immutable, Gateway-only write"]
+            S6["6. Audit Log — Gateway-only application writes"]
             S1 --> S2 --> S3 --> S4 --> S5 --> S6
         end
+
         GW_EXEC --> S1
         GW_SIM --> S1
         GW_SCAN --> S1
@@ -42,17 +43,18 @@ flowchart TD
     subgraph ADKLayer["Per-agent: LlmAgent + FunctionTool + Runner.run_async()"]
         RUNNER["Gemini 3.5 Flash decides tool calls —<br/>FunctionTools wrap GatewayClient only,<br/>zero direct Firestore/GitHub access"]
     end
+
     Agents -.-> ADKLayer
 
     subgraph Async["Async Runtime — Pub/Sub"]
         TOPIC["Pub/Sub topic: agent-jobs"]
         SUBS["6 filtered push subscriptions<br/>(attributes.agentType), OIDC-authenticated"]
-        WORKER["/worker/&lt;action&gt; endpoints —<br/>atomic Firestore claim transaction<br/>(queued → running, race-safe)"]
+        WORKER["/worker/&lt;action&gt; endpoints —<br/>atomic Firestore claim transaction<br/>QUEUED → RUNNING → WAITING_APPROVAL → RESUMED → COMPLETED/FAILED"]
         TOPIC --> SUBS --> WORKER
     end
 
     subgraph GCP["Google Cloud Infrastructure"]
-        FIRESTORE[("Firestore — agent_registry, workflows,<br/>memory, policies, audit_log, sandbox_*")]
+        FIRESTORE[("Firestore — agent_registry, workflows,<br/>Memory Bank — persistent case/context memory,<br/>policies, audit_log, sandbox_*")]
         SECRETS["Secret Manager — GitHub PAT"]
         TRACE["Cloud Trace — OpenTelemetry,<br/>W3C traceparent propagation"]
         VERTEX["Vertex AI — Gemini 3.5 Flash"]
@@ -65,6 +67,7 @@ flowchart TD
     UI_API --> GW_EXEC
     UI_API --> GW_SIM
     UI_API --> GW_SCAN
+
     Agents -->|"OIDC-authenticated calls"| GW_EXEC
     Agents -->|"enqueue job"| TOPIC
     WORKER -->|"invoke agent's ADK Runner"| Agents
@@ -72,6 +75,7 @@ flowchart TD
     S5 -->|"read/write — Gateway is the ONLY Firestore-authorized identity"| FIRESTORE
     S5 -->|"read PAT"| SECRETS
     S5 -->|"issue creation, commit reads"| GITHUB
+
     S6 --> FIRESTORE
     RUNNER --> VERTEX
     S4 --> VERTEX
