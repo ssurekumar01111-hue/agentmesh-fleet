@@ -4,76 +4,84 @@
 
 ```mermaid
 flowchart TD
-    subgraph Frontend["Control Plane Web Dashboard (Next.js 15 on Cloud Run)"]
-        UI["Dashboard UI (React / Tailwind / Lucide)"]
-        UI_API["Internal API Proxy (/api/gateway)"]
+    subgraph Frontend["Dashboard — Next.js 15 (Cloud Run)"]
+        UI["5-Tab Control Plane UI<br/>Overview · Registry · Live Workflows · Policies · Observability"]
+        UI_API["/api/gateway, /api/trigger-agent,<br/>/api/resume-workflow (OIDC-authenticated)"]
         UI --> UI_API
     end
 
-    subgraph SecurityGateway["AgentMesh Gateway (FastAPI on Cloud Run)"]
-        GW_ENTRY["POST /v1/execute"]
+    subgraph Gateway["AgentMesh Gateway — Zero-Trust Control Plane (Cloud Run)"]
+        GW_EXEC["POST /v1/execute"]
         GW_SIM["POST /v1/simulate-policy"]
-        
-        subgraph Pipeline["6-Stage Zero-Trust Execution Pipeline"]
-            S1["Stage 1: Auth Verification (OIDC Token Validation)"]
-            S2["Stage 2: Identity Check (Firestore Registry Validation)"]
-            S3["Stage 3: Policy Engine Check (Collection & Deny Rules)"]
-            S4["Stage 4: Threat Shield Inline Scan (PII & Injection Detection)"]
-            S5["Stage 5: Tool Access Dispatcher"]
-            S6["Stage 6: Immutable Audit Log Write (Firestore audit_log)"]
-            
+        GW_SCAN["POST /v1/simulate-scan"]
+
+        subgraph Pipeline["6-Stage Pipeline"]
+            S1["1. Authentication — OIDC token verification"]
+            S2["2. Identity Check — agent_registry lookup, active status"]
+            S3["3. Policy Check — allowedCollections + deny rules + workflow ownership + atomic claim"]
+            S4["4. Threat Shield — regex + Gemini 3.5 Flash classifier, inbound & outbound"]
+            S5["5. Tool Access — Firestore / GitHub, via GatewayClient only"]
+            S6["6. Audit Log — immutable, Gateway-only write"]
             S1 --> S2 --> S3 --> S4 --> S5 --> S6
         end
-
-        GW_ENTRY --> S1
+        GW_EXEC --> S1
         GW_SIM --> S1
+        GW_SCAN --> S1
     end
 
-    subgraph Agents["Domain Agent Fleet (Google ADK v2.6+ & Gemini 3.5 Flash on Cloud Run)"]
-        AG_FRAUD["Fraud & Finance Agent\n(agentmesh-fraud-finance)\n[LlmAgent + FunctionTools: fetch_invoice,\nfetch_vendor_history, write_memory,\nupdate_workflow]"]
-        AG_IT["IT & Security Agent\n(agentmesh-it-security)\n[LlmAgent + FunctionTools: list_issues,\nlist_commits, create_issue, write_memory,\nupdate_incident, update_workflow]"]
-        AG_COMP["Compliance Agent\n(agentmesh-compliance)\n[LlmAgent + FunctionTools: fetch_workflow,\nfetch_memory, fetch_policies, write_memory,\nread_hr_employees]\n[Phase 9b: get_policies bug fix — action=read]"]
-        AG_EXPENSE["Expense Approval Agent\n(agentmesh-expense-approval)\n[LlmAgent + FunctionTools: fetch_expense,\nwrite_memory, update_workflow]"]
-        AG_LEAVE["HR Leave Agent\n(agentmesh-hr-leave)\n[LlmAgent + FunctionTools: fetch_leave_request,\nfetch_employee, write_memory, update_workflow]"]
-        AG_LEGAL["Legal Contract Agent\n(agentmesh-legal-contract)\n[LlmAgent + FunctionTools: fetch_contract,\nwrite_memory, update_workflow]"]
-
-        GEMINI["Google Vertex AI\n(gemini-3.5-flash)"]
-
-        AG_FRAUD -->|Gemini Reasoning| GEMINI
-        AG_IT -->|Gemini Reasoning| GEMINI
-        AG_COMP -->|Gemini Reasoning| GEMINI
-        AG_EXPENSE -->|Gemini Reasoning| GEMINI
-        AG_LEAVE -->|Gemini Reasoning| GEMINI
-        AG_LEGAL -->|Gemini Reasoning| GEMINI
-
-        AG_FRAUD -->|OIDC Auth + Gateway API| GW_ENTRY
-        AG_IT -->|OIDC Auth + Gateway API| GW_ENTRY
-        AG_COMP -->|OIDC Auth + Gateway API| GW_ENTRY
-        AG_EXPENSE -->|OIDC Auth + Gateway API| GW_ENTRY
-        AG_LEAVE -->|OIDC Auth + Gateway API| GW_ENTRY
-        AG_LEGAL -->|OIDC Auth + Gateway API| GW_ENTRY
+    subgraph Agents["Domain Agent Fleet — 6 real agents (Cloud Run, Google ADK)"]
+        direction LR
+        A1["Fraud & Finance"]
+        A2["IT & Security"]
+        A3["Compliance"]
+        A4["Expense Approval"]
+        A5["HR Leave"]
+        A6["Legal Contract"]
     end
 
+    subgraph ADKLayer["Per-agent: LlmAgent + FunctionTool + Runner.run_async()"]
+        RUNNER["Gemini 3.5 Flash decides tool calls —<br/>FunctionTools wrap GatewayClient only,<br/>zero direct Firestore/GitHub access"]
+    end
+    Agents -.-> ADKLayer
 
-    subgraph External["External Integrations"]
-        GITHUB["GitHub Sandbox Repo\n(ssurekumar01111-hue/Northbridge-Retail-Co.)"]
+    subgraph Async["Async Runtime — Pub/Sub"]
+        TOPIC["Pub/Sub topic: agent-jobs"]
+        SUBS["6 filtered push subscriptions<br/>(attributes.agentType), OIDC-authenticated"]
+        WORKER["/worker/&lt;action&gt; endpoints —<br/>atomic Firestore claim transaction<br/>(queued → running, race-safe)"]
+        TOPIC --> SUBS --> WORKER
     end
 
-    subgraph GCPInfra["Google Cloud Platform Infrastructure"]
-        FIRESTORE[(Google Firestore NoSQL Database)]
-        SECRET_MGR[GCP Secret Manager]
-        PUBSUB[GCP Pub/Sub]
-        TRACE[GCP Cloud Trace & OpenTelemetry]
+    subgraph GCP["Google Cloud Infrastructure"]
+        FIRESTORE[("Firestore — agent_registry, workflows,<br/>memory, policies, audit_log, sandbox_*")]
+        SECRETS["Secret Manager — GitHub PAT"]
+        TRACE["Cloud Trace — OpenTelemetry,<br/>W3C traceparent propagation"]
+        VERTEX["Vertex AI — Gemini 3.5 Flash"]
     end
 
+    subgraph External["External"]
+        GITHUB["GitHub — Northbridge Retail Co. sandbox repo"]
+    end
+
+    UI_API --> GW_EXEC
     UI_API --> GW_SIM
-    S5 -->|Read / Write| FIRESTORE
-    S5 -->|Read PAT| SECRET_MGR
-    S5 -->|Issue Creation & Commits| GITHUB
-    S6 --> FIRESTORE
+    UI_API --> GW_SCAN
+    Agents -->|"OIDC-authenticated calls"| GW_EXEC
+    Agents -->|"enqueue job"| TOPIC
+    WORKER -->|"invoke agent's ADK Runner"| Agents
 
-    SecurityGateway -.->|OpenTelemetry Spans| TRACE
-    Agents -.->|OpenTelemetry Spans| TRACE
+    S5 -->|"read/write — Gateway is the ONLY Firestore-authorized identity"| FIRESTORE
+    S5 -->|"read PAT"| SECRETS
+    S5 -->|"issue creation, commit reads"| GITHUB
+    S6 --> FIRESTORE
+    RUNNER --> VERTEX
+    S4 --> VERTEX
+
+    Gateway -.->|"spans"| TRACE
+    Agents -.->|"spans"| TRACE
+
+    style Gateway fill:#1e293b,color:#fff
+    style Async fill:#1e3a5f,color:#fff
+    style ADKLayer fill:#3730a3,color:#fff
 ```
 
 ---
@@ -90,6 +98,7 @@ flowchart TD
 | **Expense Approval Agent** | `agentmesh-expense-approval` | https://agentmesh-expense-approval-138003672216.asia-south1.run.app |
 | **HR Leave Agent** | `agentmesh-hr-leave` | https://agentmesh-hr-leave-138003672216.asia-south1.run.app |
 | **Legal Contract Agent** | `agentmesh-legal-contract` | https://agentmesh-legal-contract-138003672216.asia-south1.run.app |
+| **Pub/Sub Async Job Topic** | `agent-jobs` | `projects/agentmesh-fleet-2026/topics/agent-jobs` |
 | **GitHub Sandbox Repository** | `Northbridge-Retail-Co.` | https://github.com/ssurekumar01111-hue/Northbridge-Retail-Co. |
 | **GCP Cloud Trace Console** | `agentmesh-fleet-2026` | https://console.cloud.google.com/traces/traces?project=agentmesh-fleet-2026 |
 
@@ -110,10 +119,11 @@ flowchart TD
 
 ## Real Execution Flow & Zero-Trust Guarantees
 
-1. **Identity & Auth Isolation**: Each agent runs as a distinct Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, `agentmesh-compliance@...`, `agentmesh-expense-approval@...`, `agentmesh-hr-leave@...`, `agentmesh-legal-contract@...`).
-2. **Genuine ADK Runner Loop**: All 6 domain agents run tool calls exclusively through Google ADK `Runner.run_async()` tool-execution loop (`LlmAgent` + `FunctionTool` closures). There are no manual or out-of-band call paths to these functions outside the Runner.
-3. **Gateway Mediation**: Agents never communicate directly with Firestore or GitHub; all tool access requests pass through the Gateway pipeline via ADK FunctionTools wrapping GatewayClient calls.
-4. **Authoritative Timestamps**: All write actions use ISO 8601 UTC timestamps set dynamically (`datetime.now(timezone.utc).isoformat()`), replacing literal placeholders.
-5. **Threat Shield (Guard Pipeline)**: Every inbound payload and outbound response is scanned for prompt injection, secret leakage, and PII.
-6. **Persisted Workflow Resumption**: Paused workflows store state in Firestore (`workflows` collection), surviving Cloud Run process restarts.
-7. **Distributed OpenTelemetry Tracing**: Every pipeline execution emits spans exported directly to GCP Cloud Trace for end-to-end observability. ADK's internal tracer runs on a separate namespace — no conflict with each agent's `telemetry.py` tracer.
+1. **Identity & Auth Isolation**: Each agent runs with its own dedicated Google Service Account (`agentmesh-fraud-finance@...`, `agentmesh-it-security@...`, etc.). All service-to-service communication is authenticated via Google Cloud Run OIDC ID tokens.
+2. **Async Pub/Sub Runtime & Atomic Job Claim**: Background workflows are dispatched asynchronously through the `agent-jobs` Pub/Sub topic and routed to agents via filtered push subscriptions. Worker endpoints (`/worker/<action>`) execute transactional atomic claim operations (`queued` → `running`) directly through the Gateway to guarantee race-safe execution across concurrent instances.
+3. **Stage 3 Policy Check & Workflow Ownership**: Enforces `allowedCollections`, cross-department deny rules (`policies` collection), and strict workflow ownership verification ensuring only assigned or initiating agent identities can modify workflow state.
+4. **Stage 4 Threat Shield (Guard Pipeline)**: Dual-layer security scanning combining fast regex armor (secrets, PII, known injection patterns) and a live **Vertex AI Gemini 3.5 Flash** classifier on both inbound payloads and outbound tool responses. Simulation scans (`/v1/simulate-scan`) allow zero-execution testing via the Dashboard Threat Shield Playground.
+5. **Gateway-Only Tool & Database Access**: Domain agents hold zero direct permissions on Firestore or GitHub. The Gateway is the **only** authorized identity permitted to read/write Firestore collections and access Secret Manager for GitHub PAT tokens. Agents interact with external resources strictly via ADK `FunctionTool` closures wrapping `GatewayClient`.
+6. **Genuine ADK Runner Loop**: All 6 domain agents reason and invoke tools exclusively through Google ADK `Runner.run_async()` (`LlmAgent` + Gemini 3.5 Flash), maintaining strict separation between reasoning and tool execution.
+7. **Persisted Workflow Resumption & Governance**: Paused workflows (`waiting_approval`) persist their state in Firestore (`workflows` and `memory` collections). Human approval actions dispatched from the Dashboard trigger `/resume` endpoints, allowing agents to seamlessly complete multi-step tasks across process restarts.
+8. **Distributed OpenTelemetry Observability**: End-to-end W3C `traceparent` context propagation across Dashboard, Pub/Sub, Agents, and Gateway pipelines exports granular distributed trace spans directly to Google Cloud Trace.
