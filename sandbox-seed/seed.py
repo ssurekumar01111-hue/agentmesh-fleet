@@ -301,6 +301,63 @@ EXPENSES = [
         "status": "pending_review",
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
+    },
+    # Phase 25 Spending Policy Pilot Expenses
+    {
+        "id": "exp-2026-010",
+        "employeeId": "emp-001",
+        "department": "Finance",
+        "amount": 8500.00,
+        "category": "equipment",
+        "description": "Server hardware upgrade for finance analytics node — within per-transaction and daily spending limits",
+        "submittedDate": "2026-08-20",
+        "expenseDate": "2026-08-19",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-011",
+        "employeeId": "emp-005",
+        "department": "IT",
+        "amount": 12000.00,  # Exceeds maxTransactionAmount ($10,000)
+        "category": "equipment",
+        "description": "Enterprise SAN storage expansion unit — exceeds agent per-transaction limit ($10,000)",
+        "submittedDate": "2026-08-21",
+        "expenseDate": "2026-08-20",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-012",
+        "employeeId": "emp-002",
+        "department": "Finance",
+        "amount": 7500.00,   # Exceeds approvalThreshold ($5,000), within caps ($10,000 / $25,000)
+        "category": "travel",
+        "description": "Multi-city regional supplier audit and logistics review travel expenses — requires managerial approval",
+        "submittedDate": "2026-08-22",
+        "expenseDate": "2026-08-21",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
+    },
+    {
+        "id": "exp-2026-013",
+        "employeeId": "emp-004",
+        "department": "HR",
+        "amount": 3500.00,   # Cleanly under approvalThreshold ($5,000)
+        "category": "training",
+        "description": "Company-wide compliance certification course licenses — under approval threshold",
+        "submittedDate": "2026-08-23",
+        "expenseDate": "2026-08-22",
+        "receiptAttached": True,
+        "status": "pending_review",
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
     }
 ]
 
@@ -666,11 +723,23 @@ REGISTRY_ENTRIES = [
         "status": "active",
         "agentType": "domain",
         "description": "Automated employee travel and operational expense validation against category policy limits.",
-        "capabilities": ["expense-review", "policy-check", "lag-audit"],
+        "capabilities": ["expense-review", "policy-check", "lag-audit", "spending-policy-evaluation"],
         "allowedTools": ["firestore:sandbox_expenses", "firestore:workflows", "firestore:memory", "firestore:audit_log"],
         "allowedCollections": ["sandbox_expenses", "workflows", "memory", "audit_log"],
         "serviceAccountEmail": f"agentmesh-expense-approval@{PROJECT_ID}.iam.gserviceaccount.com",
         "riskLevel": "low",
+        "maxTransactionAmount": 10000.0,
+        "dailySpendLimit": 25000.0,
+        "approvalThreshold": 5000.0,
+        "dailySpendUsed": 0.0,
+        "spendingPolicy": {
+            "maxTransactionAmount": 10000.0,
+            "dailySpendLimit": 25000.0,
+            "approvalThreshold": 5000.0,
+            "dailySpendUsed": 0.0,
+            "resetMechanism": "computed_on_the_fly_from_audit_log",
+            "currency": "USD"
+        },
         "createdAt": datetime.now(timezone.utc),
         "updatedAt": datetime.now(timezone.utc)
     },
@@ -903,6 +972,21 @@ def seed_collection(db, collection_name: str, documents: list):
                         ),
                         "allowedTools": existing_data.get(
                             "allowedTools", doc_data.get("allowedTools", [])
+                        ),
+                        "maxTransactionAmount": existing_data.get(
+                            "maxTransactionAmount", doc_data.get("maxTransactionAmount")
+                        ),
+                        "dailySpendLimit": existing_data.get(
+                            "dailySpendLimit", doc_data.get("dailySpendLimit")
+                        ),
+                        "approvalThreshold": existing_data.get(
+                            "approvalThreshold", doc_data.get("approvalThreshold")
+                        ),
+                        "dailySpendUsed": existing_data.get(
+                            "dailySpendUsed", doc_data.get("dailySpendUsed", 0.0)
+                        ),
+                        "spendingPolicy": existing_data.get(
+                            "spendingPolicy", doc_data.get("spendingPolicy")
                         ),
                     }
                     merged_data = {

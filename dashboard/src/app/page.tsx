@@ -42,6 +42,7 @@ export default function Dashboard() {
   // Policy Playground state
   const [pgSelectedSa, setPgSelectedSa] = useState<string>("");
   const [pgSelectedResource, setPgSelectedResource] = useState<string>("sandbox_employees");
+  const [pgAmount, setPgAmount] = useState<string>("");
   const [pgRunning, setPgRunning] = useState(false);
   const [pgResult, setPgResult] = useState<any | null>(null);
 
@@ -319,6 +320,7 @@ export default function Dashboard() {
     const targetResource = `firestore:${pgSelectedResource}`;
 
     try {
+      const parsedAmount = pgAmount && !isNaN(parseFloat(pgAmount)) ? parseFloat(pgAmount) : undefined;
       const res = await fetch("/api/gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -328,6 +330,7 @@ export default function Dashboard() {
           targetResource,
           collectionName: pgSelectedResource,
           action: "read",
+          amount: parsedAmount,
         }),
       });
       const gatewayRes = await res.json();
@@ -960,6 +963,50 @@ export default function Dashboard() {
                           </div>
                         </div>
 
+                        {/* Gateway-Enforced Agent Spending Policy (Phase 25) */}
+                        {(selectedAgent.spendingPolicy || selectedAgent.maxTransactionAmount) && (
+                          <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded bg-amber-200 flex items-center justify-center">
+                                <IconLock size={12} className="text-amber-800" />
+                              </div>
+                              <span className="text-xs font-semibold text-[#0f172a]">
+                                Gateway-Enforced Agent Spending Policy
+                              </span>
+                              <span className="pill-badge badge-green text-[10px]">Active Pilot</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                              <div className="bg-white p-2 rounded-lg border border-amber-100">
+                                <span className="text-[10px] text-[#64748b] font-medium block">Per-Tx Cap</span>
+                                <span className="text-xs font-bold font-mono text-[#0f172a]">
+                                  ${(selectedAgent.spendingPolicy?.maxTransactionAmount || selectedAgent.maxTransactionAmount || 10000).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-white p-2 rounded-lg border border-amber-100">
+                                <span className="text-[10px] text-[#64748b] font-medium block">Daily Limit</span>
+                                <span className="text-xs font-bold font-mono text-[#0f172a]">
+                                  ${(selectedAgent.spendingPolicy?.dailySpendLimit || selectedAgent.dailySpendLimit || 25000).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-white p-2 rounded-lg border border-amber-100">
+                                <span className="text-[10px] text-[#64748b] font-medium block">Approval Threshold</span>
+                                <span className="text-xs font-bold font-mono text-amber-700">
+                                  ${(selectedAgent.spendingPolicy?.approvalThreshold || selectedAgent.approvalThreshold || 5000).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-white p-2 rounded-lg border border-amber-100">
+                                <span className="text-[10px] text-[#64748b] font-medium block">Reset Mechanism</span>
+                                <span className="text-[11px] font-semibold text-emerald-700">
+                                  On-the-Fly (Audit Log)
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-[#64748b] italic">
+                              Zero-trust enforcement: The agent never calculates its own budget. Gateway is the sole authority on spending approval and limits.
+                            </p>
+                          </div>
+                        )}
+
                         {/* Owner */}
                         {selectedAgent.owner && (
                           <div className="pt-3 border-t border-[#f1f5f9] text-xs text-[#64748b]">
@@ -1488,7 +1535,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-4 p-4 rounded-xl bg-white border border-[#e2e8f0]">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
                     {/* Agent Dropdown */}
                     <div>
                       <label className="block text-xs font-medium text-[#475569] mb-1">
@@ -1517,6 +1564,9 @@ export default function Dashboard() {
                         onChange={(e) => setPgSelectedResource(e.target.value)}
                         className="w-full text-xs p-2 rounded-lg border border-[#cbd5e1] bg-white text-[#0f172a] font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       >
+                        <option value="sandbox_expenses">
+                          firestore:sandbox_expenses (Expense records)
+                        </option>
                         <option value="sandbox_employees">
                           firestore:sandbox_employees (HR records)
                         </option>
@@ -1530,6 +1580,20 @@ export default function Dashboard() {
                           firestore:sandbox_vendors (Vendor records)
                         </option>
                       </select>
+                    </div>
+
+                    {/* Optional Spending Amount Input */}
+                    <div>
+                      <label className="block text-xs font-medium text-[#475569] mb-1">
+                        Amount ($) <span className="text-[10px] text-[#64748b]">(Spending Policy)</span>
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 7500 or 12000"
+                        value={pgAmount}
+                        onChange={(e) => setPgAmount(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-[#cbd5e1] bg-white text-[#0f172a] font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
                     </div>
 
                     {/* Execute Button */}
@@ -1551,6 +1615,8 @@ export default function Dashboard() {
                       className={`p-4 rounded-xl border ${
                         pgResult.policyDecision === "allowed" || pgResult.status === "allowed"
                           ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                          : pgResult.policyDecision === "waiting_approval" || pgResult.status === "waiting_approval"
+                          ? "bg-amber-50/70 border-amber-200 text-amber-900"
                           : "bg-red-50/70 border-red-200 text-red-900"
                       }`}
                     >
@@ -1560,6 +1626,10 @@ export default function Dashboard() {
                             <div className="p-1 rounded bg-emerald-600 text-white">
                               <IconShieldCheck size={18} />
                             </div>
+                          ) : pgResult.policyDecision === "waiting_approval" || pgResult.status === "waiting_approval" ? (
+                            <div className="p-1 rounded bg-amber-600 text-white">
+                              <IconClock size={18} />
+                            </div>
                           ) : (
                             <div className="p-1 rounded bg-red-600 text-white">
                               <IconLock size={18} />
@@ -1568,10 +1638,13 @@ export default function Dashboard() {
                           <div>
                             <span className="text-xs font-bold uppercase tracking-wider">
                               REAL GATEWAY DECISION:{" "}
-                              {pgResult.policyDecision || pgResult.status || "DENIED"}
+                              {pgResult.policyDecision === "waiting_approval" || pgResult.status === "waiting_approval"
+                                ? "WAITING APPROVAL (HUMAN-IN-THE-LOOP GATE REQUIRED)"
+                                : pgResult.policyDecision || pgResult.status || "DENIED"}
                             </span>
                             <div className="text-[11px] opacity-80">
                               Agent: {pgResult.agentId || pgSelectedSa} • Target: firestore:{pgSelectedResource}
+                              {pgResult.spendingDetails && ` • Amount: $${Number(pgResult.spendingDetails.requestedAmount || 0).toLocaleString()}`}
                             </div>
                           </div>
                         </div>
@@ -1588,6 +1661,26 @@ export default function Dashboard() {
                           <strong>Policy Reason:</strong>{" "}
                           {pgResult.policyReason || pgResult.detail || "Allowed by department permissions"}
                         </p>
+                        {pgResult.spendingDetails && (
+                          <div className="mt-2 pt-2 border-t border-black/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                            <div className="bg-white/80 p-1.5 rounded border border-black/10">
+                              <span className="opacity-70 block text-[10px]">Per-Tx Cap:</span>
+                              <strong>${Number(pgResult.spendingDetails.maxTransactionAmount).toLocaleString()}</strong>
+                            </div>
+                            <div className="bg-white/80 p-1.5 rounded border border-black/10">
+                              <span className="opacity-70 block text-[10px]">Daily Limit:</span>
+                              <strong>${Number(pgResult.spendingDetails.dailySpendLimit).toLocaleString()}</strong>
+                            </div>
+                            <div className="bg-white/80 p-1.5 rounded border border-black/10">
+                              <span className="opacity-70 block text-[10px]">Approval Threshold:</span>
+                              <strong>${Number(pgResult.spendingDetails.approvalThreshold).toLocaleString()}</strong>
+                            </div>
+                            <div className="bg-white/80 p-1.5 rounded border border-black/10">
+                              <span className="opacity-70 block text-[10px]">Daily Spend Used:</span>
+                              <strong>${Number(pgResult.spendingDetails.dailySpendUsed || 0).toLocaleString()}</strong>
+                            </div>
+                          </div>
+                        )}
                         {pgResult.data && (
                           <p className="text-[11px] font-mono text-[#334155]">
                             Retrieved Data: {Array.isArray(pgResult.data) ? `${pgResult.data.length} records returned` : "1 record returned"}

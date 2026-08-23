@@ -131,3 +131,12 @@ flowchart TD
 6. **Genuine ADK Runner Loop**: All 6 domain agents reason and invoke tools exclusively through Google ADK `Runner.run_async()` (`LlmAgent` + Gemini 3.5 Flash), maintaining strict separation between reasoning and tool execution.
 7. **Persisted Workflow Resumption & Governance**: Paused workflows (`waiting_approval`) persist their state in Firestore (`workflows` and `memory` collections). Human approval actions dispatched from the Dashboard trigger `/resume` endpoints, allowing agents to seamlessly complete multi-step tasks across process restarts.
 8. **Distributed OpenTelemetry Observability**: End-to-end W3C `traceparent` context propagation across Dashboard, Pub/Sub, Agents, and Gateway pipelines exports granular distributed trace spans directly to Google Cloud Trace.
+9. **Gateway-Enforced Agent Spending Policy (Phase 25)**:
+   - **Zero-Trust Spending Invariant**: Agents NEVER calculate, check, or enforce their own budgets. The Gateway is the sole authority on whether an operation is permitted.
+   - **Stage 3.2 Decision Pipeline**:
+     - *Per-Transaction Cap*: If `requestedAmount > maxTransactionAmount` (e.g. $10,000) → `DENY` (HTTP 403, reason: `"Agent spending limit exceeded"`).
+     - *Daily Spend Limit*: If `requestedAmount + dailySpendUsed > dailySpendLimit` (e.g. $25,000) → `DENY` (HTTP 403, reason: `"Daily spend limit exceeded."`).
+     - *Approval Threshold*: If `requestedAmount > approvalThreshold` (e.g. $5,000) → `WAITING_APPROVAL` (workflow lands in `waiting_approval` with `human_approval_gate` step; approved via standard human-in-the-loop resume chain).
+     - *Under Threshold*: `ALLOWED` cleanly.
+   - **Reset Mechanism**: `dailySpendUsed` is computed on-the-fly from a query over today's (UTC) `audit_log` entries for the agent (`policyDecision in ["allowed", "waiting_approval"]` and non-simulated). This eliminates stale counters, avoids background cron/scheduled job infrastructure, and ensures resilient UTC-daily budget resets.
+

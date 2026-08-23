@@ -73,6 +73,29 @@ class GatewayClient:
             payload={"docId": expense_id},
         )
 
+    def update_expense(
+        self,
+        expense_id: str,
+        status: str,
+        amount: float,
+        notes: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Write updated expense status and amount via Gateway (sandbox_expenses collection)."""
+        return self.call_gateway(
+            target_resource="firestore:sandbox_expenses",
+            collection_name="sandbox_expenses",
+            action="write",
+            payload={
+                "docId": expense_id,
+                "data": {
+                    "status": status,
+                    "amount": amount,
+                    "reviewNotes": notes or "",
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }
+            },
+        )
+
     # ------------------------------------------------------------------
     # Memory & workflow helpers (identical contract to fraud-finance)
     # ------------------------------------------------------------------

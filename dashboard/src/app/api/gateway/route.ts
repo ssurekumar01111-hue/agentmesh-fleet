@@ -8,7 +8,7 @@ const auth = new GoogleAuth();
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { targetResource, collectionName, action, payload, simulate, targetAgentSa, simulateScan, content } = body;
+    const { targetResource, collectionName, action, payload, simulate, targetAgentSa, simulateScan, content, amount } = body;
 
     // Derived collection name if not passed directly
     const derivedCollection = collectionName || (targetResource && targetResource.includes(":") ? targetResource.split(":")[1] : targetResource) || "";
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       collectionName: derivedCollection,
       action: action || "read",
       payload: payload || {},
+      amount: amount !== undefined ? amount : (payload?.amount !== undefined ? payload.amount : undefined),
     };
 
     if (simulateScan || action === "simulate_scan") {
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
         targetResource,
         collectionName: derivedCollection,
         action: action || "read",
+        amount: amount !== undefined ? amount : (payload?.amount !== undefined ? payload.amount : undefined),
       };
     }
 
