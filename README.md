@@ -35,18 +35,18 @@ AgentMesh is a real, production-grade control plane platform for publishing, dis
 
 ```text
 agentmesh/
-├── gateway/                # Cloud Run — 6-stage pipeline (Auth, Identity, Policy, Threat Shield, Tool Access, Audit)
+├── gateway/                # Cloud Run — 6-stage pipeline (Auth, Identity, Policy, Threat Shield, Tool Access, Audit) + Spending Policy Guard
 ├── agents/
 │   ├── fraud-finance/      # ADK agent — invoice fraud investigation & state resumption
 │   ├── it-security/        # ADK agent — GitHub repo monitoring & incident triage
 │   ├── compliance/         # ADK agent — cross-department policy audit & zero-trust denial
-│   ├── expense-approval/   # ADK agent — employee expense policy review & workflow escalation
+│   ├── expense-approval/   # ADK agent — employee expense policy review & spending limit checks
 │   ├── hr-leave/           # ADK agent — employee leave request policy review & balance check
 │   └── legal-contract/     # ADK agent — contract prose & clause policy review
 ├── dashboard/              # Next.js 15 Control Plane UI (5 tabs: Overview, Registry, Workflows, Policies, Observability)
-├── sandbox-seed/           # Seeding scripts for Northbridge Retail Co. synthetic data
+├── sandbox-seed/           # Seeding scripts for Northbridge Retail Co. synthetic data & spending policies
 ├── shared/                 # Firestore schema definitions and security rules
-└── docs/                   # Architecture diagrams and design specifications
+└── docs/                   # Architecture diagrams, async runtime, and design specifications
 ```
 
 ---
@@ -68,7 +68,7 @@ agentmesh/
   ```
 
 ### 2. Sandbox Data Seeding
-To populate Firestore with Northbridge Retail Co. synthetic records, run:
+To populate Firestore with Northbridge Retail Co. synthetic records and spending policy registry entries, run:
 ```bash
 python sandbox-seed/seed.py
 ```
@@ -81,6 +81,8 @@ gcloud run deploy agentmesh-fraud-finance --source=agents/fraud-finance --region
 gcloud run deploy agentmesh-it-security --source=agents/it-security --region=asia-south1 --service-account=agentmesh-it-security@agentmesh-fleet-2026.iam.gserviceaccount.com
 gcloud run deploy agentmesh-compliance --source=agents/compliance --region=asia-south1 --service-account=agentmesh-compliance@agentmesh-fleet-2026.iam.gserviceaccount.com
 gcloud run deploy agentmesh-expense-approval --source=agents/expense-approval --region=asia-south1 --service-account=agentmesh-expense-approval@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-hr-leave --source=agents/hr-leave --region=asia-south1 --service-account=agentmesh-hr-leave@agentmesh-fleet-2026.iam.gserviceaccount.com
+gcloud run deploy agentmesh-legal-contract --source=agents/legal-contract --region=asia-south1 --service-account=agentmesh-legal-contract@agentmesh-fleet-2026.iam.gserviceaccount.com
 gcloud run deploy agentmesh-dashboard --source=dashboard --region=asia-south1 --service-account=agentmesh-dashboard@agentmesh-fleet-2026.iam.gserviceaccount.com
 ```
 
@@ -96,12 +98,23 @@ python agents/expense-approval/test_agent.py
 python agents/hr-leave/test_agent.py
 python agents/legal-contract/test_agent.py
 
-# Gateway-level zero-trust and routing verification
+# Gateway-level zero-trust, spending policy accumulation, and routing verification
 python gateway/test_gateway.py
+python gateway/test_spending_accumulation.py
 ```
 
 Each suite posts a trigger to the agent's Cloud Run endpoint (expects HTTP 202 + `{"status":"queued","workflowId":...}`), polls Firestore every 2 seconds until a terminal state (`waiting_approval`, `completed`, or `failed`) is reached, and asserts on real workflow document state.
 
+
+---
+
+## Core Security & Architecture Highlights
+
+1. **6-Stage Zero-Trust Gateway**: Enforces IAM Caller Identity, Agent Registry Whitelisting, Dynamic Policy Enforcement, Threat Shield (Guard Pipeline for prompt injection & data exfiltration), Tool Access Proxying, and Immutable Audit Logging.
+2. **Spending Policy Enforcement**: Dynamic limits on agent financial actions (`maxTransactionAmount`, `dailySpendLimit`, `approvalThreshold`) with daily spend calculated on-the-fly from audit logs.
+3. **Asynchronous Pub/Sub Runtime**: Idempotent execution with 202 Accepted response, atomic Firestore workflow claiming, and live polling in the Control Plane Dashboard.
+4. **Human-in-the-Loop Resumption**: Workflows exceeding threshold pause at `waiting_approval`, resumed via Dashboard to agent `/resume` endpoint.
+5. **Distributed OpenTelemetry Tracing**: End-to-end W3C `traceparent` propagation across Dashboard, Gateway, Agents, and Google Cloud Trace.
 
 ---
 
