@@ -123,5 +123,17 @@ Detailed system architecture diagrams, zero-trust pipeline flows, and OpenTeleme
 
 ---
 
+## Findings & Learnings
+
+- **Governance matters more than model intelligence in production.** Gemini can reason well, but enterprise agents still need identity, policy, authorization, observability, and human oversight outside the model.
+- **The LLM cannot be the security boundary.** Moving authorization into the Gateway and Google Cloud IAM prevents agents from accessing systems they are not explicitly allowed to use.
+- **Memory and workflow state are different concerns.** Agent memory stores what the system learned; durable workflow state stores where the business process is and enables pause/resume across restarts.
+- **Async systems must assume duplicate delivery.** Pub/Sub redelivery made idempotency and atomic workflow claims essential for safe execution.
+- **Agents need economic guardrails, not just data guardrails.** Transaction caps, daily limits, and approval thresholds can be enforced centrally so agents never calculate or enforce their own budgets.
+- **Observability becomes critical in multi-service agent systems.** Distributed traces and structured audit logs make agent actions, policy decisions, tool calls, latency, and failures explainable after the fact.
+
+---
+
+
 ## License
 Apache 2.0 — see [LICENSE](LICENSE)
