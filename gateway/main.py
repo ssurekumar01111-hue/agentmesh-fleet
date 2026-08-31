@@ -264,11 +264,11 @@ async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(v
             )
 
         agent_doc = registry_docs[0]
-        agent_manifest = agent_doc.to_dict()
+        agent_manifest = agent_doc.to_dict() or {}
         agent_id = agent_doc.id
-        department = agent_manifest.get("department", "")
-        agent_status = agent_manifest.get("status", "")
-        allowed_collections = agent_manifest.get("allowedCollections", [])
+        department = agent_manifest.get("department") or ""
+        agent_status = agent_manifest.get("status") or ""
+        allowed_collections = agent_manifest.get("allowedCollections") or []
 
         sim_span.set_attribute("agentId", agent_id)
 
@@ -317,7 +317,7 @@ async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(v
 
         deny_policies = list(policies_query)
         if deny_policies:
-            pol_data = deny_policies[0].to_dict()
+            pol_data = deny_policies[0].to_dict() or {}
             reason = pol_data.get("reason") or pol_data.get("description") or f"Denied by policy {deny_policies[0].id}"
             latency = (time.time() - start_time) * 1000
             log_id = write_audit_log(agent_id, None, req.action, f"[SIMULATION] Check {agent_id} -> {req.targetResource}", "DENIED", "denied", reason, [], latency, simulated=True)
@@ -337,7 +337,7 @@ async def simulate_policy(req: PolicyCheckRequest, caller_email: str = Depends(v
             )
 
         # Stage 3.2: Spending Policy Simulation Check (Gateway-enforced)
-        spending_policy = agent_manifest.get("spendingPolicy", {})
+        spending_policy = agent_manifest.get("spendingPolicy") or {}
         max_tx = spending_policy.get("maxTransactionAmount", agent_manifest.get("maxTransactionAmount"))
         daily_limit = spending_policy.get("dailySpendLimit", agent_manifest.get("dailySpendLimit"))
         approval_thresh = spending_policy.get("approvalThreshold", agent_manifest.get("approvalThreshold"))
@@ -605,11 +605,11 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
 
             agent_doc = registry_docs[0]
-            agent_manifest = agent_doc.to_dict()
+            agent_manifest = agent_doc.to_dict() or {}
             agent_id = agent_doc.id
-            department = agent_manifest.get("department", "")
-            agent_status = agent_manifest.get("status", "")
-            allowed_collections = agent_manifest.get("allowedCollections", [])
+            department = agent_manifest.get("department") or ""
+            agent_status = agent_manifest.get("status") or ""
+            allowed_collections = agent_manifest.get("allowedCollections") or []
 
             id_span.set_attribute("agentId", agent_id)
             id_span.set_attribute("department", department)
@@ -669,7 +669,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
             
             deny_policies = list(policies_query)
             if deny_policies:
-                pol_data = deny_policies[0].to_dict()
+                pol_data = deny_policies[0].to_dict() or {}
                 reason = pol_data.get("reason") or pol_data.get("description") or f"Denied by policy {deny_policies[0].id}"
                 latency = (time.time() - start_time) * 1000
                 log_id = write_audit_log(agent_id, None, req.action, str(req.dict()), "DENIED", "denied", reason, [], latency)
@@ -688,7 +688,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 )
 
             # Check 3.3: Gateway-Enforced Agent Spending Policy (BEFORE Threat Shield)
-            spending_policy = agent_manifest.get("spendingPolicy", {})
+            spending_policy = agent_manifest.get("spendingPolicy") or {}
             max_tx = spending_policy.get("maxTransactionAmount", agent_manifest.get("maxTransactionAmount"))
             daily_limit = spending_policy.get("dailySpendLimit", agent_manifest.get("dailySpendLimit"))
             approval_thresh = spending_policy.get("approvalThreshold", agent_manifest.get("approvalThreshold"))
@@ -765,12 +765,12 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                             existing_wf_doc = db.collection("workflows").document(doc_id).get()
                             if existing_wf_doc.exists:
                                 ex_d = existing_wf_doc.to_dict() or {}
-                                write_d = req.payload.get("data", {}) if isinstance(req.payload, dict) else {}
-                                ctx = write_d.get("context", {}) if isinstance(write_d, dict) else {}
+                                write_d = (req.payload.get("data") if isinstance(req.payload, dict) else {}) or {}
+                                ctx = (write_d.get("context") if isinstance(write_d, dict) else {}) or {}
                                 if (
                                     ex_d.get("status") == "resumed" or
                                     bool(ctx.get("resumedAt")) or
-                                    ex_d.get("context", {}).get("humanOperatorDecision") == "APPROVED"
+                                    (ex_d.get("context") or {}).get("humanOperatorDecision") == "APPROVED"
                                 ):
                                     is_already_resumed_or_approved = True
 
@@ -881,7 +881,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
                     elif req.action == "write":
                         doc_id = req.payload.get("docId") if req.payload else None
-                        data = req.payload.get("data", {}) if req.payload else {}
+                        data = (req.payload.get("data") if req.payload else {}) or {}
 
                         # Stage 3.1: Workflow Ownership & Spending Approval Enforcement Check
                         if req.collectionName == "workflows":
@@ -890,15 +890,15 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                                 existing_wf_doc = db.collection("workflows").document(doc_id).get()
                                 if existing_wf_doc.exists:
                                     existing_data = existing_wf_doc.to_dict() or {}
-                                    involved_sa = existing_data.get("involvedServiceAccounts", [])
+                                    involved_sa = existing_data.get("involvedServiceAccounts") or []
                                     if isinstance(involved_sa, str):
                                         involved_sa = [involved_sa]
-                                    involved_agents = existing_data.get("involvedAgentIds", [])
+                                    involved_agents = existing_data.get("involvedAgentIds") or []
                                     if isinstance(involved_agents, str):
                                         involved_agents = [involved_agents]
-                                    init_agent = existing_data.get("initiatingAgentId", "")
-                                    owner_agent = existing_data.get("agentId", "")
-                                    assigned_agent = existing_data.get("assignedAgent", "")
+                                    init_agent = existing_data.get("initiatingAgentId") or ""
+                                    owner_agent = existing_data.get("agentId") or ""
+                                    assigned_agent = existing_data.get("assignedAgent") or ""
 
                                     # The Control Plane Dashboard acts as the Human-in-the-Loop governance operator
                                     is_dashboard_operator = (
@@ -908,6 +908,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
                                     is_involved = (
                                         is_dashboard_operator or
+                                        not (involved_sa or involved_agents or init_agent or owner_agent or assigned_agent) or
                                         agent_id in involved_sa or
                                         sa_email in involved_sa or
                                         agent_id in involved_agents or
@@ -939,7 +940,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
                             # Spending policy human-approval gate enforcement
                             if spending_requires_approval:
-                                ctx = data.get("context", {}) if isinstance(data, dict) else {}
+                                ctx = (data.get("context") if isinstance(data, dict) else {}) or {}
                                 is_already_resumed_or_approved = (
                                     data.get("status") == "completed" and
                                     (
@@ -963,9 +964,9 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
                     elif req.action == "claim":
                         doc_id = req.payload.get("docId") if req.payload else None
-                        data = req.payload.get("data", {}) if req.payload else {}
-                        expected_status = req.payload.get("expectedStatus", "queued") if req.payload else "queued"
-                        new_status = req.payload.get("newStatus", "running") if req.payload else "running"
+                        data = (req.payload.get("data") if req.payload else {}) or {}
+                        expected_status = (req.payload.get("expectedStatus") if req.payload else None) or "queued"
+                        new_status = (req.payload.get("newStatus") if req.payload else None) or "running"
 
                         if not isinstance(expected_status, list):
                             expected_statuses = [expected_status]
@@ -980,15 +981,15 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                             existing_wf_doc = db.collection("workflows").document(doc_id).get()
                             if existing_wf_doc.exists:
                                 existing_data = existing_wf_doc.to_dict() or {}
-                                involved_sa = existing_data.get("involvedServiceAccounts", [])
+                                involved_sa = existing_data.get("involvedServiceAccounts") or []
                                 if isinstance(involved_sa, str):
                                     involved_sa = [involved_sa]
-                                involved_agents = existing_data.get("involvedAgentIds", [])
+                                involved_agents = existing_data.get("involvedAgentIds") or []
                                 if isinstance(involved_agents, str):
                                     involved_agents = [involved_agents]
-                                init_agent = existing_data.get("initiatingAgentId", "")
-                                owner_agent = existing_data.get("agentId", "")
-                                assigned_agent = existing_data.get("assignedAgent", "")
+                                init_agent = existing_data.get("initiatingAgentId") or ""
+                                owner_agent = existing_data.get("agentId") or ""
+                                assigned_agent = existing_data.get("assignedAgent") or ""
 
                                 is_dashboard_operator = (
                                     agent_id == "dashboard" or
@@ -997,6 +998,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
 
                                 is_involved = (
                                     is_dashboard_operator or
+                                    not (involved_sa or involved_agents or init_agent or owner_agent or assigned_agent) or
                                     agent_id in involved_sa or
                                     sa_email in involved_sa or
                                     agent_id in involved_agents or
@@ -1092,7 +1094,7 @@ async def execute_request(req: GatewayRequest, request: Request, caller_email: s
                 final_policy_reason = spending_reason if spending_requires_approval else None
                 wf_id_log = None
                 if req.payload and isinstance(req.payload, dict):
-                    wf_id_log = req.payload.get("workflowId") or req.payload.get("docId") or (req.payload.get("data", {}).get("workflowId") if isinstance(req.payload.get("data"), dict) else None)
+                    wf_id_log = req.payload.get("workflowId") or req.payload.get("docId") or ((req.payload.get("data") or {}).get("workflowId") if isinstance(req.payload.get("data"), dict) else None)
                 if not wf_id_log and req.collectionName == "workflows":
                     wf_id_log = doc_id
 
