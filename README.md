@@ -3,6 +3,8 @@
 [![Repo](https://img.shields.io/badge/GitHub-agentmesh--fleet-181717?logo=github)](https://github.com/ssurekumar01111-hue/agentmesh-fleet)
 [![All Things Agentic Hackathon](https://img.shields.io/badge/Hackathon-All%20Things%20Agentic-4285F4)](https://all-things-agentic.devpost.com/)
 
+Enterprises don't struggle to deploy their first AI agent. They struggle six months later, once there are ten of them, and nobody can say which one touched what, or why. AgentMesh is built to answer that.
+
 Built for the **All Things Agentic Hackathon** — Fortified Enterprise Fleet track.
 
 AgentMesh is a real, production-grade control plane platform for publishing, discovering, orchestrating, protecting, and auditing a fleet of AI agents across departments — demoed live against a self-built synthetic enterprise, **Northbridge Retail Co.**
